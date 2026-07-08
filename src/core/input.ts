@@ -10,7 +10,7 @@ export class Input {
   private confirmQueued = false;
   private cardKeyQueued = -1;
   private mouseFire = false;
-  private touchFire = false;
+  private firePointers = new Set<number>();
   private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   /** main.ts sets this to receive canvas-space taps for UI hit testing */
   onTap: ((cx: number, cy: number) => void) | null = null;
@@ -46,7 +46,7 @@ export class Input {
       if (e.clientX < half) {
         this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
       } else if (e.clientY < window.innerHeight / 2) {
-        this.touchFire = true;
+        this.firePointers.add(e.pointerId);
       } else {
         this.dropQueued = true;
       }
@@ -60,10 +60,11 @@ export class Input {
     const release = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') this.mouseFire = false;
       if (this.stick.active && e.pointerId === this.stick.id) this.stick.active = false;
-      else if (e.pointerType !== 'mouse') this.touchFire = false;
+      this.firePointers.delete(e.pointerId);
     };
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
+    window.addEventListener('blur', () => this.keys.clear());
   }
 
   poll(): Intent {
@@ -84,7 +85,7 @@ export class Input {
     return {
       move: { x, y },
       drop,
-      fire: this.keys.has('KeyF') || this.mouseFire || this.touchFire,
+      fire: this.keys.has('KeyF') || this.mouseFire || this.firePointers.size > 0,
     };
   }
 
