@@ -45,6 +45,7 @@ export class World {
   sonarTimer = 0;
   sonarCycle = 0;
   camX = 0;
+  /** drained (cleared) by the frame consumer every update; never self-clears */
   events: string[] = [];
   private nextId = 1;
 
@@ -250,7 +251,11 @@ export class World {
     s.y += s.vy * dt;
     if (s.x < SUB_R) { s.x = SUB_R; s.dir = 1; s.vx = Math.abs(s.vx); }
     if (s.x > ARENA_W - SUB_R) { s.x = ARENA_W - SUB_R; s.dir = -1; s.vx = -Math.abs(s.vx); }
-    if (s.kind !== 'missile' || !s.surfaced) clampSubDepth(s);
+    if (s.kind === 'mine') {
+      const top = WATERLINE + 6, bot = SEA_BOTTOM - 10;
+      if (s.y < top) { s.y = top; s.vy = Math.abs(s.vy); }
+      if (s.y > bot) { s.y = bot; s.vy = -Math.abs(s.vy); }
+    } else if (s.kind !== 'missile' || !s.surfaced) clampSubDepth(s);
 
     if (s.kind === 'hunter') {
       s.fireTimer -= dt;
@@ -285,7 +290,12 @@ export class World {
     }
   }
 
+  private isBulletTarget(s: Sub): boolean {
+    return s.kind === 'gunboat' || (s.kind === 'mine' && s.y < WATERLINE + 16);
+  }
+
   private updateShot(p: Projectile, dt: number): void {
+    if (p.age >= p.life) return;
     p.age += dt;
     const pl = this.player;
     if (p.ptype === 'torpedo' && p.age < 3.5) {
@@ -302,7 +312,7 @@ export class World {
     if (p.ptype === 'bullet') {
       if (p.y > WATERLINE) { p.age = p.life; return; }
       for (const s of this.subs) {
-        if (s.kind !== 'gunboat' && !(s.kind === 'mine' && s.y < WATERLINE + 12)) continue;
+        if (!this.isBulletTarget(s)) continue;
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
           s.hp -= p.damage;
           p.age = p.life;
