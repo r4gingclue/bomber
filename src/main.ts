@@ -1,5 +1,5 @@
 import { VIEW_W, VIEW_H } from './game/consts';
-import { Loop, STEP } from './core/loop';
+import { Loop } from './core/loop';
 import { Input } from './core/input';
 import { AudioSys } from './core/audio';
 import { mulberry32 } from './core/rng';
@@ -116,5 +116,3 @@ document.addEventListener('visibilitychange', () => {
   else loop.start();
 });
 
-// keep STEP referenced for clarity of fixed-step contract
-void STEP;
