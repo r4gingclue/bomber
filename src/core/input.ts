@@ -65,7 +65,9 @@ export class Input {
         return;
       }
       this.touchSeen = true;
-      if (e.clientX < window.innerWidth / 2) {
+      // zone split in canvas space so letterboxing can't misroute edge touches
+      const leftHalf = canvasPt ? canvasPt[0] < VIEW_W / 2 : e.clientX < window.innerWidth / 2;
+      if (leftHalf) {
         this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
         return;
       }

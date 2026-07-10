@@ -160,6 +160,7 @@ export class Renderer {
       ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), 6 + r.age * 90, 0, Math.PI * 2);
       ctx.stroke();
     }
+    ctx.lineWidth = 1;
     // player with turn motion
     const pl = world.player;
     const target = pl.facing;
