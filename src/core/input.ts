@@ -2,6 +2,8 @@ export interface Intent {
   move: { x: number; y: number };
   drop: boolean;
   fire: boolean;
+  /** world-space aim point; resolved by main.ts from mouse or aim stick */
+  aim?: { x: number; y: number } | null;
 }
 
 export class Input {

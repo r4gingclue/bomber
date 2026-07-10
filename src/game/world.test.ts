@@ -48,7 +48,7 @@ describe('World', () => {
     w.subs.length = 0;
     w.subs.push({
       id: 999, kind: 'mine', hp: 1, x: w.player.x + 30, y: WATERLINE + 6,
-      vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 99, surfaced: false,
+      vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 99, surfaced: false, hitFlash: 0,
     });
     // put the player at the water-contact line so bullets fire near the mine's depth
     w.player.y = WATERLINE - 6;
@@ -63,5 +63,50 @@ describe('World', () => {
     Object.defineProperty(bad, 'x', { get() { throw new Error('boom'); } });
     expect(() => w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false })).not.toThrow();
     expect(w.subs.includes(bad)).toBe(false);
+  });
+
+  it('fires bullets toward the aim point', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.player.turretAngle = 0;
+    const aim = { x: w.player.x + 100, y: w.player.y - 100 }; // up-right
+    // let the turret settle on the target first
+    for (let i = 0; i < 60; i++) {
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, aim });
+    }
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: true, aim });
+    const bullet = w.shots.find(s => s.ptype === 'bullet')!;
+    expect(bullet).toBeDefined();
+    expect(bullet.vx).toBeGreaterThan(0);
+    expect(bullet.vy).toBeLessThan(0);
+    expect(Math.hypot(bullet.vx, bullet.vy)).toBeCloseTo(300, 0);
+  });
+
+  it('turret eases toward the aim target instead of snapping', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.player.turretAngle = 0;
+    const aim = { x: w.player.x, y: w.player.y + 100 }; // straight down: target PI/2
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, aim });
+    expect(w.player.turretAngle).toBeGreaterThan(0);
+    expect(w.player.turretAngle).toBeLessThan(Math.PI / 2); // not snapped
+  });
+
+  it('shake decays toward zero and is capped', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.shake = 100;
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    expect(w.shake).toBeLessThan(100);
+    for (let i = 0; i < 600; i++) w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    expect(w.shake).toBe(0);
+  });
+
+  it('blast rings expire after 0.3s', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.rings.push({ x: 0, y: 200, age: 0 });
+    for (let i = 0; i < 30; i++) w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    expect(w.rings.length).toBe(0);
   });
 });

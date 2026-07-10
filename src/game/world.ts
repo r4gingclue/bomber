@@ -6,6 +6,7 @@ import { defaultStats, type PlayerStats } from './upgrades';
 import { resolveBlasts, circlesOverlap, type Blast, type BlastTarget } from './collision';
 import { stepDepthCharge, steerHoming, clampSubDepth } from './entities/physics';
 import type { Sub, DepthCharge, Projectile, Particle, Player } from './entities/types';
+import { angleTo, easeAngle } from './aim';
 
 export const BASE_SCORE: Record<SpawnKind, number> = {
   patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
@@ -30,7 +31,7 @@ export function scoreBlast(
 }
 
 export class World {
-  player: Player = { x: VIEW_W / 2, y: 60, vx: 0, vy: 0, hp: 100, iframes: 0, facing: 1, fireCd: 0, pdCd: 0 };
+  player: Player = { x: VIEW_W / 2, y: 60, vx: 0, vy: 0, hp: 100, iframes: 0, facing: 1, fireCd: 0, pdCd: 0, turretAngle: 0, muzzleT: 0 };
   stats: PlayerStats = defaultStats();
   owned = new Set<string>();
   subs: Sub[] = [];
@@ -45,6 +46,9 @@ export class World {
   sonarTimer = 0;
   sonarCycle = 0;
   camX = 0;
+  shake = 0;
+  rings: { x: number; y: number; age: number }[] = [];
+  private smokeT = 0;
   /** drained (cleared) by the frame consumer every update; never self-clears */
   events: string[] = [];
   private nextId = 1;
@@ -76,6 +80,7 @@ export class World {
       fireTimer: 2 + this.rng() * 3,
       surfaceTimer: 3 + this.rng() * 4,
       surfaced: false,
+      hitFlash: 0,
     };
     s.vx = SUB_SPEED[kind] * s.dir;
     if (kind === 'mine') s.vy = (this.rng() - 0.5) * 8;
@@ -97,6 +102,11 @@ export class World {
         this.sonarTimer = 3;
         this.events.push('ping');
       }
+    }
+    this.shake = Math.max(0, this.shake - 10 * dt);
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      this.rings[i].age += dt;
+      if (this.rings[i].age > 0.3) this.rings.splice(i, 1);
     }
     // camera follows player
     const target = Math.max(0, Math.min(ARENA_W - VIEW_W, this.player.x - VIEW_W / 2));
@@ -123,7 +133,14 @@ export class World {
     p.vy *= drag;
     p.x = Math.max(PLAYER_R, Math.min(ARENA_W - PLAYER_R, p.x + p.vx * dt));
     p.y = Math.max(10, p.y + p.vy * dt);
-    if (intent.move.x !== 0) p.facing = intent.move.x > 0 ? 1 : -1;
+    const aim = intent.aim ?? null;
+    if (aim) {
+      const target = angleTo(p.x, p.y, aim.x, aim.y);
+      p.turretAngle = easeAngle(p.turretAngle, target, 10 * dt);
+    }
+    if (intent.fire && aim) p.facing = Math.cos(p.turretAngle) >= 0 ? 1 : -1;
+    else if (Math.abs(p.vx) > 15) p.facing = p.vx > 0 ? 1 : -1;
+    if (p.muzzleT > 0) p.muzzleT -= dt;
     if (p.iframes > 0) p.iframes -= dt;
     // water contact
     if (p.y > WATERLINE - 6) {
@@ -150,12 +167,14 @@ export class World {
     if (p.fireCd > 0) p.fireCd -= dt;
     if (intent.fire && p.fireCd <= 0) {
       p.fireCd = 0.12;
+      const a = (intent.aim ?? null) ? p.turretAngle : (p.facing > 0 ? 0 : Math.PI);
       this.shots.push({
         id: this.nextId++, ptype: 'bullet',
-        x: p.x + p.facing * 12, y: p.y + 2,
-        vx: p.facing * 300, vy: 0,
+        x: p.x + Math.cos(a) * 12, y: p.y + 4 + Math.sin(a) * 12,
+        vx: Math.cos(a) * 300, vy: Math.sin(a) * 300,
         age: 0, life: 0.7, damage: 8,
       });
+      p.muzzleT = 0.05;
       this.events.push('fire');
     }
     // point defense
@@ -172,6 +191,17 @@ export class World {
         }
       }
     }
+    if (p.hp > 0 && p.hp < this.stats.maxHp * 0.4) {
+      this.smokeT -= dt;
+      if (this.smokeT <= 0) {
+        this.smokeT = 0.08;
+        this.particles.push({
+          id: this.nextId++, x: p.x - p.facing * 10, y: p.y,
+          vx: -p.facing * 20, vy: -10,
+          life: 0.8, maxLife: 0.8, color: '#3a3f46', size: 2,
+        });
+      }
+    }
   }
 
   private damagePlayer(amount: number): void {
@@ -180,6 +210,7 @@ export class World {
     p.hp -= amount;
     p.iframes = 0.8;
     this.events.push('hit');
+    this.shake = Math.min(8, this.shake + 4);
     if (p.hp <= 0) this.events.push('die');
   }
 
@@ -227,10 +258,19 @@ export class World {
       this.subs = this.subs.filter(s => !hitIds.has(s.id));
     }
     for (const b of blasts) this.boomParticles(b.x, b.y, 10);
+    for (const b of blasts) this.rings.push({ x: b.x, y: b.y, age: 0 });
+    this.shake = Math.min(6, this.shake + 2);
     this.events.push('boom');
   }
 
   private updateSub(s: Sub, dt: number): void {
+    if (s.hitFlash > 0) s.hitFlash -= dt;
+    if (s.kind !== 'gunboat' && s.kind !== 'mine' && this.rng() < dt * 3) {
+      this.particles.push({
+        id: this.nextId++, x: s.x - s.dir * 12, y: s.y, vx: 0, vy: -12,
+        life: 1, maxLife: 1, color: '#9fd8ff', size: 1,
+      });
+    }
     const p = this.player;
     if (s.kind === 'gunboat') {
       s.fireTimer -= dt;
@@ -302,6 +342,12 @@ export class World {
       steerHoming(p, pl.x, pl.y, 90, 2.5, dt);
     } else if (p.ptype === 'sam') {
       steerHoming(p, pl.x, pl.y, 140, 1.2, dt);
+      if (this.rng() < dt * 40) {
+        this.particles.push({
+          id: this.nextId++, x: p.x, y: p.y + 5, vx: (this.rng() - 0.5) * 20, vy: 40,
+          life: 0.25, maxLife: 0.25, color: '#ff9a44', size: 2,
+        });
+      }
     } else if (p.ptype === 'flak') {
       p.vy += 200 * dt;
     }
@@ -315,12 +361,15 @@ export class World {
         if (!this.isBulletTarget(s)) continue;
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
           s.hp -= p.damage;
+          s.hitFlash = 0.1;
           p.age = p.life;
           if (s.hp <= 0) {
             this.subs = this.subs.filter(o => o.id !== s.id);
             this.score += BASE_SCORE[s.kind];
             this.kills++;
             this.boomParticles(s.x, s.y, 10);
+            this.rings.push({ x: s.x, y: s.y, age: 0 });
+            this.shake = Math.min(6, this.shake + 2);
             this.events.push('boom');
           }
           return;

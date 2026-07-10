@@ -15,6 +15,7 @@ export interface Sub extends Entity {
   fireTimer: number;
   surfaceTimer: number;
   surfaced: boolean;
+  hitFlash: number;
 }
 
 export type DepthCharge = Entity;
@@ -45,4 +46,6 @@ export interface Player {
   facing: 1 | -1;
   fireCd: number;
   pdCd: number;
+  turretAngle: number;
+  muzzleT: number;
 }

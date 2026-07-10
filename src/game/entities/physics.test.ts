@@ -30,7 +30,7 @@ describe('steerHoming', () => {
 
 describe('clampSubDepth', () => {
   const sub = (y: number, vy: number): Sub =>
-    ({ id: 1, x: 0, y, vx: 0, vy, kind: 'patrol', hp: 1, dir: 1, fireTimer: 0, surfaceTimer: 0, surfaced: false });
+    ({ id: 1, x: 0, y, vx: 0, vy, kind: 'patrol', hp: 1, dir: 1, fireTimer: 0, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
   it('bounces off the waterline ceiling', () => {
     const s = sub(WATERLINE + 2, -10);
     clampSubDepth(s);
