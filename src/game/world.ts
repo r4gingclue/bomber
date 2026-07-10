@@ -138,8 +138,10 @@ export class World {
       const target = angleTo(p.x, p.y, aim.x, aim.y);
       p.turretAngle = easeAngle(p.turretAngle, target, 10 * dt);
     }
-    if (intent.fire && aim) p.facing = Math.cos(p.turretAngle) >= 0 ? 1 : -1;
-    else if (Math.abs(p.vx) > 15) p.facing = p.vx > 0 ? 1 : -1;
+    if (intent.fire && aim) {
+      const c = Math.cos(p.turretAngle);
+      if (Math.abs(c) > 0.15) p.facing = c > 0 ? 1 : -1;
+    } else if (Math.abs(p.vx) > 15) p.facing = p.vx > 0 ? 1 : -1;
     if (p.muzzleT > 0) p.muzzleT -= dt;
     if (p.iframes > 0) p.iframes -= dt;
     // water contact
@@ -166,16 +168,20 @@ export class World {
     // autocannon
     if (p.fireCd > 0) p.fireCd -= dt;
     if (intent.fire && p.fireCd <= 0) {
-      p.fireCd = 0.12;
       const a = (intent.aim ?? null) ? p.turretAngle : (p.facing > 0 ? 0 : Math.PI);
-      this.shots.push({
-        id: this.nextId++, ptype: 'bullet',
-        x: p.x + Math.cos(a) * 12, y: p.y + 4 + Math.sin(a) * 12,
-        vx: Math.cos(a) * 300, vy: Math.sin(a) * 300,
-        age: 0, life: 0.7, damage: 8,
-      });
-      p.muzzleT = 0.05;
-      this.events.push('fire');
+      const sx = p.x + Math.cos(a) * 12;
+      const sy = p.y + 4 + Math.sin(a) * 12;
+      if (sy <= WATERLINE - 2) {
+        p.fireCd = 0.12;
+        this.shots.push({
+          id: this.nextId++, ptype: 'bullet',
+          x: sx, y: sy,
+          vx: Math.cos(a) * 300, vy: Math.sin(a) * 300,
+          age: 0, life: 0.7, damage: 8,
+        });
+        p.muzzleT = 0.05;
+        this.events.push('fire');
+      }
     }
     // point defense
     if (this.stats.pointDefense) {

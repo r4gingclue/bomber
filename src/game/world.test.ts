@@ -109,4 +109,25 @@ describe('World', () => {
     for (let i = 0; i < 30; i++) w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
     expect(w.rings.length).toBe(0);
   });
+
+  it('skips the shot instead of spawning a bullet underwater', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.player.y = WATERLINE - 6;
+    w.player.turretAngle = Math.PI / 2; // straight down
+    const aim = { x: w.player.x, y: w.player.y + 100 };
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: true, aim });
+    expect(w.shots.filter(s => s.ptype === 'bullet').length).toBe(0);
+    expect(w.events).not.toContain('fire');
+  });
+
+  it('facing does not flip while firing near-vertical', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.player.facing = 1;
+    w.player.turretAngle = Math.PI / 2 - 0.01;
+    const aim = { x: w.player.x - 0.5, y: w.player.y + 100 }; // wobble across vertical
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: true, aim });
+    expect(w.player.facing).toBe(1);
+  });
 });
