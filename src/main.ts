@@ -8,6 +8,7 @@ import { StateMachine } from './game/state';
 import { drawCards, type UpgradeCard } from './game/upgrades';
 import { makeSheet } from './render/sprites';
 import { Renderer, cardRect } from './render/renderer';
+import { aimFromStick } from './game/aim';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 canvas.width = VIEW_W;
@@ -91,7 +92,15 @@ function update(dt: number): void {
     return;
   }
   // playing
-  world.update(dt, input.poll());
+  const intent = input.poll();
+  const stickDir = input.aimStickDir();
+  if (stickDir) {
+    intent.aim = aimFromStick(world.player.x, world.player.y, stickDir.dx, stickDir.dy);
+  } else {
+    const m = input.aimCanvasPoint();
+    if (m) intent.aim = { x: m.x + world.camX, y: m.y };
+  }
+  world.update(dt, intent);
   for (const ev of world.events) audio.handle(ev);
   world.events.length = 0;
   if (world.player.hp <= 0) {
