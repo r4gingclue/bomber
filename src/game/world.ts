@@ -103,7 +103,7 @@ export class World {
         this.events.push('ping');
       }
     }
-    this.shake = Math.max(0, this.shake - 10 * dt);
+    this.shake = Math.max(0, this.shake - 8 * dt);
     for (let i = this.rings.length - 1; i >= 0; i--) {
       this.rings[i].age += dt;
       if (this.rings[i].age > 0.3) this.rings.splice(i, 1);

@@ -95,10 +95,10 @@ describe('World', () => {
   it('shake decays toward zero and is capped', () => {
     const w = new World(mulberry32(1));
     w.startWave();
-    w.shake = 100;
+    w.shake = 8; // cap value, max reachable in play
     w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
-    expect(w.shake).toBeLessThan(100);
-    for (let i = 0; i < 600; i++) w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    expect(w.shake).toBeLessThan(8);
+    for (let i = 0; i < 120; i++) w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
     expect(w.shake).toBe(0);
   });
 
