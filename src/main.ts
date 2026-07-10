@@ -107,7 +107,7 @@ function update(dt: number): void {
 
 const loop = new Loop(
   dt => update(dt),
-  () => renderer.draw(world, state.phase, cards, elapsed),
+  () => renderer.draw(world, state.phase, cards, elapsed, input.touchSeen),
 );
 loop.start();
 
