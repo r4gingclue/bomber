@@ -31,4 +31,20 @@ describe('StateMachine', () => {
     m.start();
     expect(m.phase).toBe('playing');
   });
+  it('act intro flows upgrade → actIntro → playing', () => {
+    const m = new StateMachine();
+    m.start();
+    m.waveCleared();
+    m.toActIntro();
+    expect(m.phase).toBe('actIntro');
+    m.introDone();
+    expect(m.phase).toBe('playing');
+  });
+  it('actIntro transitions are guarded', () => {
+    const m = new StateMachine();
+    m.toActIntro();
+    expect(m.phase).toBe('menu');
+    m.introDone();
+    expect(m.phase).toBe('menu');
+  });
 });

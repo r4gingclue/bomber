@@ -1,4 +1,4 @@
-export type Phase = 'menu' | 'playing' | 'upgrade' | 'gameover';
+export type Phase = 'menu' | 'playing' | 'upgrade' | 'actIntro' | 'gameover';
 
 export class StateMachine {
   phase: Phase = 'menu';
@@ -17,5 +17,11 @@ export class StateMachine {
   }
   toMenu(): void {
     if (this.phase === 'gameover') this.phase = 'menu';
+  }
+  toActIntro(): void {
+    if (this.phase === 'upgrade') this.phase = 'actIntro';
+  }
+  introDone(): void {
+    if (this.phase === 'actIntro') this.phase = 'playing';
   }
 }
