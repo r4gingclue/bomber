@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { World, scoreBlast, BASE_SCORE } from './world';
 import { WATERLINE } from './consts';
 import { mulberry32 } from '../core/rng';
+import { generateTerrain } from './terrain';
 
 describe('scoreBlast', () => {
   it('adds depth bonus per kill', () => {
@@ -129,5 +130,92 @@ describe('World', () => {
     const aim = { x: w.player.x - 0.5, y: w.player.y + 100 }; // wobble across vertical
     w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: true, aim });
     expect(w.player.facing).toBe(1);
+  });
+
+  it('starts in act 1 sea with terrain and counts waves in act', () => {
+    const w = new World(mulberry32(1));
+    expect(w.act).toBe(1);
+    expect(w.terrain.biome).toBe('sea');
+    w.startWave();
+    expect(w.waveInAct).toBe(1);
+  });
+
+  it('startAct advances biome, heals 25%, resets wave counter', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.player.hp = 40;
+    w.startAct();
+    expect(w.act).toBe(2);
+    expect(w.terrain.biome).toBe('coast');
+    expect(w.waveInAct).toBe(0);
+    expect(w.player.hp).toBe(40 + 25);
+    expect(w.charges.length).toBe(0);
+  });
+
+  it('actComplete after finale slot cleared', () => {
+    const w = new World(mulberry32(1));
+    for (let i = 0; i < 4; i++) { w.startWave(); w.subs.length = 0; }
+    expect(w.waveInAct).toBe(4);
+    expect(w.actComplete).toBe(true);
+  });
+
+  it('gentle touchdown on an LZ does no damage', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.terrain = generateTerrain('coast', mulberry32(2));
+    const s = w.terrain.lz[0];
+    const x = (s.x0 + s.x1) / 2;
+    w.player.x = x;
+    w.player.y = w.terrain.surface[Math.floor(x / 8)] - 7;
+    w.player.vx = 0;
+    w.player.vy = 20; // gentle descent
+    const hp = w.player.hp;
+    // a few frames for the slow descent to actually reach the surface
+    for (let i = 0; i < 5; i++) {
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    }
+    expect(w.player.hp).toBe(hp);
+    expect(w.player.vy).toBe(0);
+  });
+
+  it('crashing into a building damages the player', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.terrain = generateTerrain('coast', mulberry32(2));
+    // find the tallest building column
+    const iTall = w.terrain.surface.indexOf(Math.min(...w.terrain.surface));
+    w.player.x = iTall * 8 + 4;
+    w.player.y = w.terrain.surface[iTall] - 2;
+    w.player.vy = 100; // fast
+    const hp = w.player.hp;
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    expect(w.player.hp).toBeLessThan(hp);
+  });
+
+  it('bombs detonate on contact with land', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    w.terrain = generateTerrain('coast', mulberry32(2));
+    const iLand = w.terrain.water.findIndex(v => !v) + 5;
+    w.charges.push({ id: 991, x: iLand * 8 + 4, y: w.terrain.surface[iLand] - 4, vx: 0, vy: 60 });
+    for (let i = 0; i < 20 && w.charges.length > 0; i++) {
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    }
+    expect(w.charges.length).toBe(0);
+    expect(w.rings.length).toBeGreaterThan(0); // blast happened
+  });
+
+  it('water enemies only spawn over water on the coast', () => {
+    const w = new World(mulberry32(1));
+    w.act = 2;
+    w.terrain = generateTerrain('coast', mulberry32(3));
+    w.startWave();
+    for (const s of w.subs) {
+      if (s.kind !== 'gunboat') continue; // gunboat sits on surface — must be wet too
+    }
+    for (const s of w.subs) {
+      expect(w.terrain.water[Math.max(0, Math.min(119, Math.floor(s.x / 8)))]).toBe(true);
+    }
   });
 });

@@ -3,8 +3,8 @@ import type { DepthCharge, Projectile, Sub } from './types';
 
 const AIR_GRAVITY = 320;
 
-export function stepDepthCharge(c: DepthCharge, sinkSpeed: number, dt: number): void {
-  if (c.y < WATERLINE) {
+export function stepDepthCharge(c: DepthCharge, sinkSpeed: number, dt: number, wet = true): void {
+  if (!wet || c.y < WATERLINE) {
     c.vy += AIR_GRAVITY * dt;
   } else {
     c.vy += (sinkSpeed - c.vy) * 4 * dt;

@@ -16,6 +16,11 @@ describe('stepDepthCharge', () => {
     for (let i = 0; i < 600; i++) stepDepthCharge(c, 34, 1 / 60);
     expect(c.vy).toBeCloseTo(34, 0);
   });
+  it('keeps falling under gravity over land (wet=false)', () => {
+    const c = charge(WATERLINE + 10, 50);
+    stepDepthCharge(c, 34, 1 / 60, false);
+    expect(c.vy).toBeGreaterThan(50);
+  });
 });
 
 describe('steerHoming', () => {

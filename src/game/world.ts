@@ -7,6 +7,8 @@ import { resolveBlasts, circlesOverlap, type Blast, type BlastTarget } from './c
 import { stepDepthCharge, steerHoming, clampSubDepth } from './entities/physics';
 import type { Sub, DepthCharge, Projectile, Particle, Player } from './entities/types';
 import { angleTo, easeAngle } from './aim';
+import { generateTerrain, surfaceAt, isWater, onLZ, type Terrain } from './terrain';
+import { biomeForAct } from './biomes';
 
 export const BASE_SCORE: Record<SpawnKind, number> = {
   patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
@@ -39,6 +41,9 @@ export class World {
   shots: Projectile[] = [];
   particles: Particle[] = [];
   wave = 0;
+  act = 1;
+  waveInAct = 0;
+  terrain: Terrain;
   score = 0;
   kills = 0;
   drops = 0;
@@ -53,15 +58,23 @@ export class World {
   events: string[] = [];
   private nextId = 1;
 
-  constructor(private rng: Rng) {}
+  constructor(private rng: Rng) {
+    this.terrain = generateTerrain(biomeForAct(1), rng);
+  }
 
   get cleared(): boolean {
     return this.subs.length === 0;
   }
 
+  get actComplete(): boolean {
+    return this.waveInAct >= 4 && this.cleared;
+  }
+
   startWave(): void {
     this.wave++;
-    for (const kind of composeWave(this.wave, this.rng)) this.spawn(kind);
+    this.waveInAct++;
+    const budgetWave = this.waveInAct === 4 ? this.wave + 2 : this.wave; // finale stub: bigger wave
+    for (const kind of composeWave(budgetWave, this.rng)) this.spawn(kind);
     if (this.stats.sonar) {
       this.sonarTimer = 3;
       this.sonarCycle = 8;
@@ -69,10 +82,28 @@ export class World {
     }
   }
 
+  startAct(): void {
+    this.act++;
+    this.waveInAct = 0;
+    this.terrain = generateTerrain(biomeForAct(this.act), this.rng);
+    this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.maxHp * 0.25);
+    this.player.x = VIEW_W / 2;
+    this.player.y = 60;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.charges.length = 0;
+    this.shots.length = 0;
+    this.particles.length = 0;
+    this.rings.length = 0;
+    this.events.push('ping');
+  }
+
   private spawn(kind: SpawnKind): void {
+    let x = this.rng() * ARENA_W;
+    for (let tries = 0; tries < 20 && !isWater(this.terrain, x); tries++) x = this.rng() * ARENA_W;
     const s: Sub = {
       id: this.nextId++, kind, hp: kind === 'gunboat' ? 24 : 1,
-      x: this.rng() * ARENA_W,
+      x,
       y: kind === 'gunboat' ? WATERLINE - 3
         : WATERLINE + 20 + this.rng() * (SEA_BOTTOM - WATERLINE - 34),
       vx: 0, vy: 0,
@@ -144,13 +175,25 @@ export class World {
     } else if (Math.abs(p.vx) > 15) p.facing = p.vx > 0 ? 1 : -1;
     if (p.muzzleT > 0) p.muzzleT -= dt;
     if (p.iframes > 0) p.iframes -= dt;
-    // water contact
-    if (p.y > WATERLINE - 6) {
-      p.y = WATERLINE - 6;
-      p.vy = -140;
-      this.damagePlayer(DAMAGE.water);
-      this.events.push('splash');
-      this.splashParticles(p.x);
+    // terrain contact
+    const surf = surfaceAt(this.terrain, p.x);
+    if (p.y > surf - 6) {
+      const gentle = onLZ(this.terrain, p.x) && Math.abs(p.vy) < 40 && Math.abs(p.vx) < 30;
+      p.y = surf - 6;
+      if (gentle) {
+        p.vy = 0;
+        p.vx *= 0.8;
+      } else {
+        p.vy = -140;
+        this.damagePlayer(DAMAGE.water);
+        if (isWater(this.terrain, p.x)) {
+          this.events.push('splash');
+          this.splashParticles(p.x);
+        } else {
+          this.events.push('hit');
+          this.boomParticles(p.x, surf, 4);
+        }
+      }
     }
     // drop
     if (intent.drop && this.charges.length < this.stats.maxCharges) {
@@ -224,11 +267,13 @@ export class World {
     const blasts: Blast[] = [];
     for (let i = this.charges.length - 1; i >= 0; i--) {
       const c = this.charges[i];
-      if (c.y >= WATERLINE && c.y - c.vy * dt < WATERLINE) {
+      const wet = isWater(this.terrain, c.x);
+      const surf = surfaceAt(this.terrain, c.x);
+      if (wet && c.y >= WATERLINE && c.y - c.vy * dt < WATERLINE) {
         this.events.push('splash');
         this.splashParticles(c.x);
       }
-      stepDepthCharge(c, this.stats.sinkSpeed, dt);
+      stepDepthCharge(c, this.stats.sinkSpeed, dt, wet);
       if (this.stats.magnetic && c.y > WATERLINE) {
         let best: Sub | null = null, bd = 70;
         for (const s of this.subs) {
@@ -243,7 +288,7 @@ export class World {
       }
       const nearTarget = this.subs.some(s =>
         circlesOverlap({ x: c.x, y: c.y, r: FUSE_R }, { x: s.x, y: s.y, r: SUB_R }));
-      if ((c.y > WATERLINE && nearTarget) || c.y >= SEA_BOTTOM - 4) {
+      if ((wet && c.y > WATERLINE && nearTarget) || (wet && c.y >= SEA_BOTTOM - 4) || (!wet && c.y >= surf - 2)) {
         blasts.push({ x: c.x, y: c.y, r: this.stats.blastRadius });
         this.charges.splice(i, 1);
       }
@@ -362,7 +407,8 @@ export class World {
     p.y += p.vy * dt;
     if (p.ptype === 'torpedo' && wasAbove !== p.y < WATERLINE) this.events.push('splash');
     if (p.ptype === 'bullet') {
-      if (p.y > WATERLINE) { p.age = p.life; return; }
+      const wetB = isWater(this.terrain, p.x);
+      if ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x))) { p.age = p.life; return; }
       for (const s of this.subs) {
         if (!this.isBulletTarget(s)) continue;
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
@@ -384,6 +430,11 @@ export class World {
       return;
     }
     // enemy projectile vs player
+    if (!isWater(this.terrain, p.x) && p.y >= surfaceAt(this.terrain, p.x)) {
+      p.age = p.life;
+      this.boomParticles(p.x, p.y, 3);
+      return;
+    }
     if (circlesOverlap({ x: p.x, y: p.y, r: 3 }, { x: pl.x, y: pl.y, r: PLAYER_R })) {
       p.age = p.life;
       this.damagePlayer(p.damage);
