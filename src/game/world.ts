@@ -338,10 +338,17 @@ export class World {
       }
       return;
     }
+    const prevX = s.x;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
     if (s.x < SUB_R) { s.x = SUB_R; s.dir = 1; s.vx = Math.abs(s.vx); }
     if (s.x > ARENA_W - SUB_R) { s.x = ARENA_W - SUB_R; s.dir = -1; s.vx = -Math.abs(s.vx); }
+    // water enemies turn back at the shoreline instead of swimming into land
+    if (!isWater(this.terrain, s.x)) {
+      s.x = prevX;
+      s.dir = (s.dir === 1 ? -1 : 1);
+      s.vx = -s.vx;
+    }
     if (s.kind === 'mine') {
       const top = WATERLINE + 6, bot = SEA_BOTTOM - 10;
       if (s.y < top) { s.y = top; s.vy = Math.abs(s.vy); }

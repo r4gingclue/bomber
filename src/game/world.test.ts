@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { World, scoreBlast, BASE_SCORE } from './world';
 import { WATERLINE } from './consts';
 import { mulberry32 } from '../core/rng';
-import { generateTerrain } from './terrain';
+import { generateTerrain, isWater } from './terrain';
 
 describe('scoreBlast', () => {
   it('adds depth bonus per kill', () => {
@@ -204,6 +204,22 @@ describe('World', () => {
     }
     expect(w.charges.length).toBe(0);
     expect(w.rings.length).toBeGreaterThan(0); // blast happened
+  });
+
+  it('water enemies turn back at the shoreline', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.terrain = generateTerrain('coast', mulberry32(2));
+    w.subs.length = 0;
+    const shoreX = w.terrain.water.lastIndexOf(true) * 8;
+    w.subs.push({
+      id: 501, kind: 'patrol', hp: 1, x: shoreX - 10, y: 200,
+      vx: 30, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 99, surfaced: false, hitFlash: 0,
+    });
+    for (let i = 0; i < 120; i++) w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    const s = w.subs.find(o => o.id === 501)!;
+    expect(s).toBeDefined();
+    expect(isWater(w.terrain, s.x)).toBe(true);
   });
 
   it('water enemies only spawn over water on the coast', () => {
