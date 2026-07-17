@@ -59,6 +59,10 @@ function startRun(): void {
   world.startWave();
   state.start();
   audio.handle('ui');
+  // dev-only hook so playtests can inspect and drive game state
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) {
+    (window as unknown as { __world: World }).__world = world;
+  }
 }
 
 function pickCard(i: number): void {
