@@ -23,6 +23,7 @@ const renderer = new Renderer(ctx, makeSheet());
 let world = new World(mulberry32(Date.now() >>> 0));
 let cards: UpgradeCard[] = [];
 let elapsed = 0;
+let introT = 0;
 
 // --- scaling: integer scale, letterbox via CSS size
 let scale = 1;
@@ -66,8 +67,14 @@ function pickCard(i: number): void {
   card.apply(world.stats);
   world.owned.add(card.id);
   world.player.hp = Math.min(world.stats.maxHp, world.player.hp + 15); // small heal per wave
-  state.cardPicked();
-  world.startWave();
+  if (world.actComplete) {
+    world.startAct();
+    state.toActIntro();
+    introT = 2;
+  } else {
+    state.cardPicked();
+    world.startWave();
+  }
   audio.handle('ui');
 }
 
@@ -89,6 +96,15 @@ function update(dt: number): void {
     const k = input.consumeCardKey();
     if (k >= 0) pickCard(k);
     input.poll();
+    return;
+  }
+  if (state.phase === 'actIntro') {
+    introT -= dt;
+    input.poll();
+    if (introT <= 0) {
+      state.introDone();
+      world.startWave();
+    }
     return;
   }
   // playing
