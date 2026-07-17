@@ -18,26 +18,27 @@ export function makeSheet(): Sheet {
   };
 
   // --- helicopter 32x16, rows = bank (0 level, 1 lean, 2 hard), cols = rotor frame
+  // Nose on the RIGHT: renderer draws unflipped when facing = 1 (rightward).
   const heli = (ox: number, oy: number, bank: number, rotor: number) => {
     const n = bank;        // nose dips with bank
     const t = -bank;       // tail rises with bank
-    px(ox + 20, oy + 7 + t, 9, 2, '#3c4b30');       // tail boom
-    px(ox + 28, oy + 4 + t, 2, 5, '#3c4b30');       // tail fin
-    px(ox + 30, oy + 5 + t, 2, 1, '#5a6d48');       // tail rotor
-    px(ox + 5, oy + 6, 16, 6, '#4a5d3a');           // fuselage
-    px(ox + 5, oy + 6, 16, 2, '#5f7549');           // top highlight
-    px(ox + 4, oy + 8 + n, 4, 3, '#3c4b30');        // gunner nose
-    px(ox + 7, oy + 6, 6, 3, '#9fd8ff');            // canopy
-    px(ox + 8, oy + 7, 2, 1, '#e8f6ff');            // canopy glint
-    px(ox + 6, oy + 11, 14, 1, '#2b3622');          // belly
-    px(ox + 11, oy + 10, 7, 2, '#3c4b30');          // stub wings
-    px(ox + 6, oy + 13, 4, 1, '#222222');           // skids
-    px(ox + 15, oy + 13, 4, 1, '#222222');
-    px(ox + 8, oy + 12, 1, 1, '#222222');
-    px(ox + 16, oy + 12, 1, 1, '#222222');
-    px(ox + 12, oy + 3, 2, 3, '#222222');           // rotor mast
-    if (rotor === 0) px(ox + 2, oy + 2, 22, 1, '#cccccc');
-    else px(ox + 6, oy + 2, 14, 1, 'rgba(220,220,220,0.6)');
+    px(ox + 3, oy + 7 + t, 9, 2, '#3c4b30');        // tail boom
+    px(ox + 2, oy + 4 + t, 2, 5, '#3c4b30');        // tail fin
+    px(ox + 0, oy + 5 + t, 2, 1, '#5a6d48');        // tail rotor
+    px(ox + 11, oy + 6, 16, 6, '#4a5d3a');          // fuselage
+    px(ox + 11, oy + 6, 16, 2, '#5f7549');          // top highlight
+    px(ox + 24, oy + 8 + n, 4, 3, '#3c4b30');       // gunner nose
+    px(ox + 19, oy + 6, 6, 3, '#9fd8ff');           // canopy
+    px(ox + 22, oy + 7, 2, 1, '#e8f6ff');           // canopy glint
+    px(ox + 12, oy + 11, 14, 1, '#2b3622');         // belly
+    px(ox + 14, oy + 10, 7, 2, '#3c4b30');          // stub wings
+    px(ox + 22, oy + 13, 4, 1, '#222222');          // skids
+    px(ox + 13, oy + 13, 4, 1, '#222222');
+    px(ox + 23, oy + 12, 1, 1, '#222222');
+    px(ox + 15, oy + 12, 1, 1, '#222222');
+    px(ox + 18, oy + 3, 2, 3, '#222222');           // rotor mast
+    if (rotor === 0) px(ox + 8, oy + 2, 22, 1, '#cccccc');
+    else px(ox + 12, oy + 2, 14, 1, 'rgba(220,220,220,0.6)');
   };
   for (let bank = 0; bank < 3; bank++) {
     for (let rotor = 0; rotor < 2; rotor++) heli(rotor * 32, bank * 16, bank, rotor);
@@ -53,12 +54,12 @@ export function makeSheet(): Sheet {
     px(ox + 1, oy + 4, 24, 6, mid);           // hull
     px(ox + 2, oy + 4, 22, 2, hi);            // top highlight
     px(ox + 2, oy + 8, 22, 2, lo);            // bottom shadow
-    px(ox + 0, oy + 5, 1, 4, accent);         // nose cap
-    px(ox + 25, oy + 5, 1, 4, accent);        // tail cap
-    px(ox + 24, oy + 2, 2, 2, accent);        // rudder
-    px(ox + 9, oy + 0, 6, 4, mid);            // conning tower
-    px(ox + 10, oy + 1, 3, 2, '#9fd8ff');     // window
-    px(ox + 15, oy + 0, 1, 3, accent);        // periscope
+    px(ox + 25, oy + 5, 1, 4, accent);        // nose cap (right: faces travel dir)
+    px(ox + 0, oy + 5, 1, 4, accent);         // tail cap
+    px(ox + 0, oy + 2, 2, 2, accent);         // rudder
+    px(ox + 11, oy + 0, 6, 4, mid);           // conning tower
+    px(ox + 13, oy + 1, 3, 2, '#9fd8ff');     // window
+    px(ox + 18, oy + 0, 1, 3, accent);        // periscope
     px(ox + 3, oy + 6, 20, 1, accent);        // stripe
   };
   sub(0,  '#f5dd6a', '#e8c832', '#b09420', '#8a7014');
