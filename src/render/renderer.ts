@@ -5,6 +5,8 @@ import type { UpgradeCard } from '../game/upgrades';
 import { bankFrame } from '../game/aim';
 import { touchButtons } from '../core/input';
 import type { Sheet } from './sprites';
+import { PALETTES, actTitle } from '../game/biomes';
+import { COL_W, COLS } from '../game/terrain';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   return { x: 40 + i * 140, y: 80, w: 120, h: 110 };
@@ -37,11 +39,12 @@ export class Renderer {
     const shy = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const cam = world.camX + shx;
     const oy = shy; // vertical shake offset for world-space drawing
+    const pal = PALETTES[world.terrain.biome];
 
     // sky
     const sky = ctx.createLinearGradient(0, 0, 0, WATERLINE);
-    sky.addColorStop(0, '#2a4a9e');
-    sky.addColorStop(1, '#7ba6e0');
+    sky.addColorStop(0, pal.skyTop);
+    sky.addColorStop(1, pal.skyBottom);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     // far clouds
@@ -63,32 +66,57 @@ export class Renderer {
     }
     // sea with depth fog
     const sea = ctx.createLinearGradient(0, WATERLINE, 0, VIEW_H);
-    sea.addColorStop(0, '#0e4a8a');
+    sea.addColorStop(0, pal.seaTop);
     sea.addColorStop(0.5, '#082d58');
-    sea.addColorStop(1, '#03101f');
+    sea.addColorStop(1, pal.seaDeep);
     ctx.fillStyle = sea;
     ctx.fillRect(0, WATERLINE + oy, VIEW_W, VIEW_H - WATERLINE);
-    // light rays (fade out by mid-depth)
-    const midY = (WATERLINE + VIEW_H) / 2;
-    ctx.fillStyle = 'rgba(159,216,255,0.06)';
-    for (let i = 0; i < 4; i++) {
-      const rx = wrapX(i * 130, cam, 0.6) + Math.sin(t * 0.3 + i) * 8;
-      ctx.beginPath();
-      ctx.moveTo(rx, WATERLINE + oy);
-      ctx.lineTo(rx + 26, WATERLINE + oy);
-      ctx.lineTo(rx + 44, midY + oy);
-      ctx.lineTo(rx + 8, midY + oy);
-      ctx.fill();
+    // terrain silhouette (land columns cover the sea gradient)
+    for (let i = 0; i < COLS; i++) {
+      if (world.terrain.water[i]) continue;
+      const x = Math.round(i * COL_W - cam);
+      if (x < -COL_W || x > VIEW_W) continue;
+      const s = Math.round(world.terrain.surface[i] + oy);
+      ctx.fillStyle = pal.ground;
+      ctx.fillRect(x, s, COL_W, VIEW_H - s);
+      ctx.fillStyle = pal.groundDark;
+      ctx.fillRect(x, Math.min(VIEW_H, s + 14), COL_W, Math.max(0, VIEW_H - s - 14));
     }
-    // sun glare on water
-    const glx = wrapX(300, cam, 0.9);
-    const glare = ctx.createRadialGradient(glx, WATERLINE + 6 + oy, 2, glx, WATERLINE + 6 + oy, 60);
-    glare.addColorStop(0, 'rgba(255,244,200,0.25)');
-    glare.addColorStop(1, 'rgba(255,244,200,0)');
-    ctx.fillStyle = glare;
-    ctx.fillRect(glx - 60, WATERLINE - 4 + oy, 120, 24);
+    // LZ pads
+    for (const span of world.terrain.lz) {
+      const x0 = Math.round(span.x0 - cam);
+      const w = span.x1 - span.x0;
+      if (x0 + w < 0 || x0 > VIEW_W) continue;
+      const y = Math.round(this.surfaceYAt(world, span.x0) + oy);
+      ctx.fillStyle = '#d8dde4';
+      ctx.fillRect(x0, y - 1, w, 2);
+      this.text('H', x0 + w / 2, y - 4, 7, '#12233d', true);
+    }
+    // light rays (fade out by mid-depth)
+    if (world.terrain.biome !== 'inland') {
+      const midY = (WATERLINE + VIEW_H) / 2;
+      ctx.fillStyle = 'rgba(159,216,255,0.06)';
+      for (let i = 0; i < 4; i++) {
+        const rx = wrapX(i * 130, cam, 0.6) + Math.sin(t * 0.3 + i) * 8;
+        ctx.beginPath();
+        ctx.moveTo(rx, WATERLINE + oy);
+        ctx.lineTo(rx + 26, WATERLINE + oy);
+        ctx.lineTo(rx + 44, midY + oy);
+        ctx.lineTo(rx + 8, midY + oy);
+        ctx.fill();
+      }
+      // sun glare on water
+      const glx = wrapX(300, cam, 0.9);
+      const glare = ctx.createRadialGradient(glx, WATERLINE + 6 + oy, 2, glx, WATERLINE + 6 + oy, 60);
+      glare.addColorStop(0, 'rgba(255,244,200,0.25)');
+      glare.addColorStop(1, 'rgba(255,244,200,0)');
+      ctx.fillStyle = glare;
+      ctx.fillRect(glx - 60, WATERLINE - 4 + oy, 120, 24);
+    }
     // waterline: two wave rows + foam caps
     for (let x = 0; x < VIEW_W; x += 4) {
+      const col = Math.max(0, Math.min(COLS - 1, Math.floor((x + cam) / COL_W)));
+      if (!world.terrain.water[col]) continue;
       const h1 = 1 + Math.round(Math.sin((x + cam) * 0.08 + t * 2.5) + 1);
       ctx.fillStyle = '#bfe3ff';
       ctx.fillRect(x, WATERLINE - h1 + oy, 4, h1);
@@ -201,6 +229,7 @@ export class Renderer {
     if (touchUI && phase === 'playing') this.touchOverlay();
     if (phase === 'menu') this.menu();
     if (phase === 'upgrade') this.upgrade(cards);
+    if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
   }
 
@@ -227,7 +256,7 @@ export class Renderer {
     ctx.fillStyle = '#e8f2ff';
     ctx.font = '8px monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(`WAVE ${world.wave}`, VIEW_W - 8, 12);
+    ctx.fillText(`ACT ${world.act} · ${world.waveInAct >= 4 ? 'FINALE' : 'WAVE ' + world.waveInAct}`, VIEW_W - 8, 12);
     ctx.fillText(`${world.score}`, VIEW_W - 8, 22);
     ctx.textAlign = 'left';
   }
@@ -281,5 +310,15 @@ export class Renderer {
     this.text(`wave ${world.wave} · score ${world.score}`, VIEW_W / 2, 120, 10, '#e8f2ff', true);
     this.text(`kills ${world.kills} · drop accuracy ${acc}%`, VIEW_W / 2, 138, 8, '#9fd8ff', true);
     this.text('press ENTER or tap for menu', VIEW_W / 2, 175, 10, '#ffd866', true);
+  }
+
+  private surfaceYAt(world: World, x: number): number {
+    return world.terrain.surface[Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)))];
+  }
+
+  private actIntro(world: World): void {
+    this.overlay();
+    this.text(actTitle(world.act), VIEW_W / 2, 125, 16, '#ffd866', true);
+    this.text('get ready', VIEW_W / 2, 150, 8, '#9fd8ff', true);
   }
 }
