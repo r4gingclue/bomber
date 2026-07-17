@@ -220,6 +220,9 @@ describe('World', () => {
     const s = w.subs.find(o => o.id === 501)!;
     expect(s).toBeDefined();
     expect(isWater(w.terrain, s.x)).toBe(true);
+    // sprite nose must stay clear of the sand too
+    expect(isWater(w.terrain, s.x + 15)).toBe(true);
+    expect(isWater(w.terrain, s.x - 15)).toBe(true);
   });
 
   it('water enemies only spawn over water on the coast', () => {

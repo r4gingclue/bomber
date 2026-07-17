@@ -343,8 +343,10 @@ export class World {
     s.y += s.vy * dt;
     if (s.x < SUB_R) { s.x = SUB_R; s.dir = 1; s.vx = Math.abs(s.vx); }
     if (s.x > ARENA_W - SUB_R) { s.x = ARENA_W - SUB_R; s.dir = -1; s.vx = -Math.abs(s.vx); }
-    // water enemies turn back at the shoreline instead of swimming into land
-    if (!isWater(this.terrain, s.x)) {
+    // water enemies turn back at the shoreline instead of swimming into land;
+    // lookahead by the sprite half-width so the nose never clips into the sand
+    const nose = s.x + s.dir * (SUB_R + 6);
+    if (!isWater(this.terrain, s.x) || !isWater(this.terrain, nose)) {
       s.x = prevX;
       s.dir = (s.dir === 1 ? -1 : 1);
       s.vx = -s.vx;
