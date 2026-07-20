@@ -144,16 +144,8 @@ export class World {
   update(dt: number, intent: Intent): void {
     this.updatePlayer(dt, intent);
     this.updateCharges(dt);
-    const hasGroundEnemies = this.subs.some(s => GROUND.has(s.kind));
-    if (hasGroundEnemies) {
-      this.guardedEach(this.shots, p => {
-        if (p.ptype === 'bullet') this.updateShot(p, dt, true);
-      });
-    }
     this.guardedEach(this.subs, s => this.updateSub(s, dt));
-    this.guardedEach(this.shots, p => {
-      if (!hasGroundEnemies || p.ptype !== 'bullet') this.updateShot(p, dt);
-    });
+    this.guardedEach(this.shots, p => this.updateShot(p, dt));
     this.shots = this.shots.filter(p => p.age < p.life);
     this.updateParticles(dt);
     if (this.sonarTimer > 0) this.sonarTimer -= dt;
@@ -332,12 +324,14 @@ export class World {
     }));
     const hitIds = resolveBlasts(blasts, targets);
     const killed = this.subs.filter(s => hitIds.has(s.id));
-    if (killed.length > 0) {
-      this.score += scoreBlast(killed.map(k => ({ kind: k.kind, y: k.y })));
-      this.kills += killed.length;
+    const destroyed = killed.filter(s => this.destroySub(s));
+    if (destroyed.length > 0) {
+      this.score += scoreBlast(destroyed.map(k => ({ kind: k.kind, y: k.y })));
+      this.kills += destroyed.length;
       this.hitDrops++;
-      for (const k of killed) this.boomParticles(k.x, k.y, 12);
-      this.subs = this.subs.filter(s => !hitIds.has(s.id));
+      for (const k of destroyed) {
+        if (k.kind !== 'scout') this.boomParticles(k.x, k.y, 12);
+      }
     }
     for (const b of blasts) this.boomParticles(b.x, b.y, 10);
     for (const b of blasts) this.rings.push({ x: b.x, y: b.y, age: 0 });
@@ -352,7 +346,7 @@ export class World {
       if (s.kind === 'scout') {
         stepScout(s, p.x, p.y, dt);
         if (circlesOverlap({ x: s.x, y: s.y, r: 8 }, { x: p.x, y: p.y, r: PLAYER_R })) {
-          this.scoutBlast(s);
+          this.destroySub(s);
         }
         return;
       }
@@ -477,12 +471,22 @@ export class World {
     this.events.push('boom');
   }
 
+  private destroySub(s: Sub): boolean {
+    if (!this.subs.some(o => o.id === s.id)) return false;
+    if (s.kind === 'scout') {
+      this.scoutBlast(s);
+    } else {
+      this.subs = this.subs.filter(o => o.id !== s.id);
+    }
+    return true;
+  }
+
   private isBulletTarget(s: Sub): boolean {
     return AIR.has(s.kind) || GROUND.has(s.kind) ||
       s.kind === 'gunboat' || (s.kind === 'mine' && s.y < WATERLINE + 16);
   }
 
-  private updateShot(p: Projectile, dt: number, groundPriority = false): void {
+  private updateShot(p: Projectile, dt: number): void {
     if (p.age >= p.life) return;
     p.age += dt;
     const pl = this.player;
@@ -505,7 +509,7 @@ export class World {
     if (p.ptype === 'torpedo' && wasAbove !== p.y < WATERLINE) this.events.push('splash');
     if (p.ptype === 'bullet') {
       const wetB = isWater(this.terrain, p.x);
-      if (!groundPriority && ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x)))) {
+      if ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x))) {
         p.age = p.life;
         return;
       }
@@ -515,15 +519,10 @@ export class World {
           s.hp -= GROUND.has(s.kind) ? p.damage * 0.5 : p.damage;
           s.hitFlash = 0.1;
           p.age = p.life;
-          if (s.hp <= 0) {
-            if (s.kind === 'scout') {
-              this.scoutBlast(s);
-              this.score += BASE_SCORE.scout;
-              this.kills++;
-            } else {
-              this.subs = this.subs.filter(o => o.id !== s.id);
-              this.score += BASE_SCORE[s.kind];
-              this.kills++;
+          if (s.hp <= 0 && this.destroySub(s)) {
+            this.score += BASE_SCORE[s.kind];
+            this.kills++;
+            if (s.kind !== 'scout') {
               this.boomParticles(s.x, s.y, 10);
               this.rings.push({ x: s.x, y: s.y, age: 0 });
               this.shake = Math.min(6, this.shake + 2);
@@ -532,9 +531,6 @@ export class World {
           }
           return;
         }
-      }
-      if (groundPriority && ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x)))) {
-        p.age = p.life;
       }
       return;
     }

@@ -278,11 +278,51 @@ describe('World', () => {
     w.startWave();
     w.subs.length = 0;
     w.terrain = generateTerrain('inland', mulberry32(4));
-    const tank = { id: 604, kind: 'tank' as const, hp: 20, x: 500, y: 140, vx: 0, vy: 0, dir: 1 as const, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 };
+    const tank = { id: 604, kind: 'tank' as const, hp: 20, x: 840, y: w.terrain.surface[105] - 4, vx: 0, vy: 0, dir: 1 as const, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 };
     w.subs.push(tank);
-    w.shots.push({ id: 605, ptype: 'bullet', x: 490, y: tank.y, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 });
+    w.shots.push({ id: 605, ptype: 'bullet', x: 830, y: tank.y, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 });
     w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
     expect(tank.hp).toBe(16); // 8 * 0.5 = 4 chip
+  });
+
+  it('scout depth-charge deaths blast the player without chaining nearby mines', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push(
+      { id: 607, kind: 'scout', hp: 8, x: 300, y: 180, vx: 0, vy: 0, dir: 1, fireTimer: 9, surfaceTimer: 0, surfaced: false, hitFlash: 0 },
+      { id: 608, kind: 'mine', hp: 1, x: 300, y: 215, vx: 0, vy: 0, dir: 1, fireTimer: 9, surfaceTimer: 9, surfaced: false, hitFlash: 0 },
+    );
+    w.charges.push({ id: 609, x: 300, y: 180, vx: 0, vy: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+
+    expect(w.subs.some(s => s.id === 607)).toBe(false);
+    expect(w.subs.some(s => s.id === 608)).toBe(true);
+    expect(w.player.hp).toBe(80);
+    expect(w.kills).toBe(1);
+    expect(w.score).toBe(BASE_SCORE.scout + 32);
+  });
+
+  it('unrelated AA guns do not let terrain-embedded bullets hit gunships', () => {
+    const gunshipHpAfter = (withAagun: boolean): number => {
+      const w = new World(mulberry32(1));
+      w.startWave();
+      w.subs.length = 0;
+      w.terrain = generateTerrain('inland', mulberry32(4));
+      const y = w.terrain.surface[105] + 2;
+      const gunship = { id: 610, kind: 'gunship' as const, hp: 24, x: 840, y, vx: 0, vy: 0, dir: -1 as const, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 };
+      w.subs.push(gunship);
+      if (withAagun) {
+        w.subs.push({ id: 611, kind: 'aagun', hp: 1, x: 600, y: w.terrain.surface[75] - 4, vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+      }
+      w.shots.push({ id: 612, ptype: 'bullet', x: 830, y, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 });
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+      return gunship.hp;
+    };
+
+    expect(gunshipHpAfter(false)).toBe(24);
+    expect(gunshipHpAfter(true)).toBe(24);
   });
 
   it('gunship shots travel straight at the player', () => {
