@@ -12,10 +12,12 @@ import { biomeForAct } from './biomes';
 
 export const BASE_SCORE: Record<SpawnKind, number> = {
   patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
+  scout: 150, gunship: 300, mchopper: 350, aagun: 200, tank: 250,
 };
 
 const SUB_SPEED: Record<SpawnKind, number> = {
   patrol: 30, hunter: 40, missile: 25, gunboat: 0, mine: 6,
+  scout: 45, gunship: 35, mchopper: 30, aagun: 0, tank: 20,
 };
 
 const PLAYER_R = 8;
