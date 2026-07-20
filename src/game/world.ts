@@ -1,7 +1,7 @@
 import type { Rng } from '../core/rng';
 import type { Intent } from '../core/input';
 import { ARENA_W, VIEW_W, WATERLINE, SEA_BOTTOM } from './consts';
-import { composeWave, type SpawnKind } from './waves';
+import { composeWave, AIR, GROUND, type SpawnKind } from './waves';
 import { defaultStats, type PlayerStats } from './upgrades';
 import { resolveBlasts, circlesOverlap, type Blast, type BlastTarget } from './collision';
 import { stepDepthCharge, steerHoming, clampSubDepth } from './entities/physics';
@@ -9,6 +9,7 @@ import type { Sub, DepthCharge, Projectile, Particle, Player } from './entities/
 import { angleTo, easeAngle } from './aim';
 import { generateTerrain, surfaceAt, isWater, onLZ, type Terrain } from './terrain';
 import { biomeForAct } from './biomes';
+import { stepScout, stepGunship, stepMchopper, stepAagun, stepTank } from './entities/ai';
 
 export const BASE_SCORE: Record<SpawnKind, number> = {
   patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
@@ -76,7 +77,7 @@ export class World {
     this.wave++;
     this.waveInAct++;
     const budgetWave = this.waveInAct === 4 ? this.wave + 2 : this.wave; // finale stub: bigger wave
-    for (const kind of composeWave(budgetWave, this.rng)) this.spawn(kind);
+    for (const kind of composeWave(budgetWave, this.rng, biomeForAct(this.act))) this.spawn(kind);
     if (this.stats.sonar) {
       this.sonarTimer = 3;
       this.sonarCycle = 8;
@@ -101,6 +102,26 @@ export class World {
   }
 
   private spawn(kind: SpawnKind): void {
+    if (AIR.has(kind)) {
+      this.subs.push({
+        id: this.nextId++, kind, hp: kind === 'gunship' ? 24 : kind === 'mchopper' ? 16 : 8,
+        x: this.rng() * ARENA_W, y: 30 + this.rng() * 80,
+        vx: 0, vy: 0, dir: this.rng() < 0.5 ? -1 : 1,
+        fireTimer: 1 + this.rng() * 2, surfaceTimer: 0, surfaced: false, hitFlash: 0,
+      });
+      return;
+    }
+    if (GROUND.has(kind)) {
+      let x = this.rng() * ARENA_W;
+      for (let tries = 0; tries < 30 && isWater(this.terrain, x); tries++) x = this.rng() * ARENA_W;
+      this.subs.push({
+        id: this.nextId++, kind, hp: kind === 'tank' ? 20 : 1,
+        x, y: surfaceAt(this.terrain, x) - 4,
+        vx: 0, vy: 0, dir: this.rng() < 0.5 ? -1 : 1,
+        fireTimer: 1.5 + this.rng() * 2, surfaceTimer: 0, surfaced: false, hitFlash: 0,
+      });
+      return;
+    }
     let x = this.rng() * ARENA_W;
     for (let tries = 0; tries < 20 && !isWater(this.terrain, x); tries++) x = this.rng() * ARENA_W;
     const s: Sub = {
@@ -123,8 +144,16 @@ export class World {
   update(dt: number, intent: Intent): void {
     this.updatePlayer(dt, intent);
     this.updateCharges(dt);
+    const hasGroundEnemies = this.subs.some(s => GROUND.has(s.kind));
+    if (hasGroundEnemies) {
+      this.guardedEach(this.shots, p => {
+        if (p.ptype === 'bullet') this.updateShot(p, dt, true);
+      });
+    }
     this.guardedEach(this.subs, s => this.updateSub(s, dt));
-    this.guardedEach(this.shots, p => this.updateShot(p, dt));
+    this.guardedEach(this.shots, p => {
+      if (!hasGroundEnemies || p.ptype !== 'bullet') this.updateShot(p, dt);
+    });
     this.shots = this.shots.filter(p => p.age < p.life);
     this.updateParticles(dt);
     if (this.sonarTimer > 0) this.sonarTimer -= dt;
@@ -318,13 +347,60 @@ export class World {
 
   private updateSub(s: Sub, dt: number): void {
     if (s.hitFlash > 0) s.hitFlash -= dt;
+    const p = this.player;
+    if (AIR.has(s.kind)) {
+      if (s.kind === 'scout') {
+        stepScout(s, p.x, p.y, dt);
+        if (circlesOverlap({ x: s.x, y: s.y, r: 8 }, { x: p.x, y: p.y, r: PLAYER_R })) {
+          this.scoutBlast(s);
+        }
+        return;
+      }
+      if (s.kind === 'gunship') {
+        if (stepGunship(s, p.x, p.y, dt)) {
+          const d = Math.hypot(p.x - s.x, p.y - s.y) || 1;
+          this.shots.push({
+            id: this.nextId++, ptype: 'shot',
+            x: s.x, y: s.y,
+            vx: ((p.x - s.x) / d) * 160, vy: ((p.y - s.y) / d) * 160,
+            age: 0, life: 2.5, damage: 10,
+          });
+          this.events.push('fire');
+        }
+        return;
+      }
+      if (stepMchopper(s, p.x, p.y, dt)) {
+        this.shots.push({
+          id: this.nextId++, ptype: 'sam',
+          x: s.x, y: s.y, vx: 0, vy: -60,
+          age: 0, life: 4, damage: DAMAGE.sam,
+        });
+        this.events.push('fire');
+      }
+      return;
+    }
+    if (GROUND.has(s.kind)) {
+      const fired = s.kind === 'tank'
+        ? stepTank(s, this.terrain, p.x, dt)
+        : stepAagun(s, p.x, p.y, dt);
+      if (fired) {
+        const dx = p.x - s.x;
+        this.shots.push({
+          id: this.nextId++, ptype: 'flak',
+          x: s.x, y: s.y - 4,
+          vx: Math.max(-140, Math.min(140, dx * 0.8)), vy: -200,
+          age: 0, life: 3, damage: DAMAGE.flak,
+        });
+        this.events.push('fire');
+      }
+      return;
+    }
     if (s.kind !== 'gunboat' && s.kind !== 'mine' && this.rng() < dt * 3) {
       this.particles.push({
         id: this.nextId++, x: s.x - s.dir * 12, y: s.y, vx: 0, vy: -12,
         life: 1, maxLife: 1, color: '#9fd8ff', size: 1,
       });
     }
-    const p = this.player;
     if (s.kind === 'gunboat') {
       s.fireTimer -= dt;
       if (s.fireTimer <= 0) {
@@ -392,11 +468,21 @@ export class World {
     }
   }
 
-  private isBulletTarget(s: Sub): boolean {
-    return s.kind === 'gunboat' || (s.kind === 'mine' && s.y < WATERLINE + 16);
+  private scoutBlast(s: Sub): void {
+    this.subs = this.subs.filter(o => o.id !== s.id);
+    this.damagePlayer(20);
+    this.boomParticles(s.x, s.y, 10);
+    this.rings.push({ x: s.x, y: s.y, age: 0 });
+    this.shake = Math.min(6, this.shake + 2);
+    this.events.push('boom');
   }
 
-  private updateShot(p: Projectile, dt: number): void {
+  private isBulletTarget(s: Sub): boolean {
+    return AIR.has(s.kind) || GROUND.has(s.kind) ||
+      s.kind === 'gunboat' || (s.kind === 'mine' && s.y < WATERLINE + 16);
+  }
+
+  private updateShot(p: Projectile, dt: number, groundPriority = false): void {
     if (p.age >= p.life) return;
     p.age += dt;
     const pl = this.player;
@@ -419,24 +505,36 @@ export class World {
     if (p.ptype === 'torpedo' && wasAbove !== p.y < WATERLINE) this.events.push('splash');
     if (p.ptype === 'bullet') {
       const wetB = isWater(this.terrain, p.x);
-      if ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x))) { p.age = p.life; return; }
+      if (!groundPriority && ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x)))) {
+        p.age = p.life;
+        return;
+      }
       for (const s of this.subs) {
         if (!this.isBulletTarget(s)) continue;
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
-          s.hp -= p.damage;
+          s.hp -= GROUND.has(s.kind) ? p.damage * 0.5 : p.damage;
           s.hitFlash = 0.1;
           p.age = p.life;
           if (s.hp <= 0) {
-            this.subs = this.subs.filter(o => o.id !== s.id);
-            this.score += BASE_SCORE[s.kind];
-            this.kills++;
-            this.boomParticles(s.x, s.y, 10);
-            this.rings.push({ x: s.x, y: s.y, age: 0 });
-            this.shake = Math.min(6, this.shake + 2);
-            this.events.push('boom');
+            if (s.kind === 'scout') {
+              this.scoutBlast(s);
+              this.score += BASE_SCORE.scout;
+              this.kills++;
+            } else {
+              this.subs = this.subs.filter(o => o.id !== s.id);
+              this.score += BASE_SCORE[s.kind];
+              this.kills++;
+              this.boomParticles(s.x, s.y, 10);
+              this.rings.push({ x: s.x, y: s.y, age: 0 });
+              this.shake = Math.min(6, this.shake + 2);
+              this.events.push('boom');
+            }
           }
           return;
         }
+      }
+      if (groundPriority && ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x)))) {
+        p.age = p.life;
       }
       return;
     }

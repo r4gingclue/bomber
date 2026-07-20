@@ -237,4 +237,64 @@ describe('World', () => {
       expect(w.terrain.water[Math.max(0, Math.min(119, Math.floor(s.x / 8)))]).toBe(true);
     }
   });
+
+  it('air enemies spawn in the sky, ground enemies on land', () => {
+    const w = new World(mulberry32(1));
+    w.act = 3;
+    w.terrain = generateTerrain('inland', mulberry32(4));
+    w.wave = 8; // next startWave → 9, all inland kinds unlocked
+    w.startWave();
+    expect(w.subs.length).toBeGreaterThan(0);
+    for (const s of w.subs) {
+      if (s.kind === 'scout' || s.kind === 'gunship' || s.kind === 'mchopper') {
+        expect(s.y).toBeLessThan(120);
+      }
+      if (s.kind === 'aagun' || s.kind === 'tank') {
+        expect(Math.abs(s.y - (w.terrain.surface[Math.floor(s.x / 8)] - 4))).toBeLessThan(3);
+      }
+    }
+  });
+
+  it('scout death blast does not chain mines', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push(
+      { id: 601, kind: 'scout', hp: 1, x: 300, y: 140, vx: 0, vy: 0, dir: 1, fireTimer: 9, surfaceTimer: 0, surfaced: false, hitFlash: 0 },
+      { id: 602, kind: 'mine', hp: 1, x: 300, y: 160, vx: 0, vy: 0, dir: 1, fireTimer: 9, surfaceTimer: 9, surfaced: false, hitFlash: 0 },
+    );
+    // kill the scout with a bullet
+    w.player.x = 260; w.player.y = 140; w.player.turretAngle = 0;
+    w.shots.push({ id: 603, ptype: 'bullet', x: 295, y: 140, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 });
+    for (let i = 0; i < 10 && w.subs.some(s => s.id === 601); i++) {
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    }
+    expect(w.subs.some(s => s.id === 601)).toBe(false); // scout dead
+    expect(w.subs.some(s => s.id === 602)).toBe(true);  // mine untouched
+  });
+
+  it('bullets chip ground enemies at half damage', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    w.terrain = generateTerrain('inland', mulberry32(4));
+    const tank = { id: 604, kind: 'tank' as const, hp: 20, x: 500, y: 140, vx: 0, vy: 0, dir: 1 as const, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 };
+    w.subs.push(tank);
+    w.shots.push({ id: 605, ptype: 'bullet', x: 490, y: tank.y, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    expect(tank.hp).toBe(16); // 8 * 0.5 = 4 chip
+  });
+
+  it('gunship shots travel straight at the player', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push({ id: 606, kind: 'gunship', hp: 24, x: w.player.x + 140, y: w.player.y, vx: 0, vy: 0, dir: -1, fireTimer: 0.01, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+    for (let i = 0; i < 30 && !w.shots.some(p => p.ptype === 'shot'); i++) {
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false });
+    }
+    const shot = w.shots.find(p => p.ptype === 'shot')!;
+    expect(shot).toBeDefined();
+    expect(shot.vx).toBeLessThan(0); // toward player on the left
+  });
 });
