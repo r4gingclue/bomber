@@ -20,7 +20,7 @@ export interface Sub extends Entity {
 
 export type DepthCharge = Entity;
 
-export type ProjectileType = 'torpedo' | 'sam' | 'flak' | 'bullet';
+export type ProjectileType = 'torpedo' | 'sam' | 'flak' | 'bullet' | 'shot' | 'pmissile';
 
 export interface Projectile extends Entity {
   ptype: ProjectileType;
