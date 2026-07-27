@@ -129,7 +129,7 @@ function update(dt: number): void {
   }
   if (world.cleared) {
     state.waveCleared();
-    cards = drawCards(mulberry32((Date.now() ^ world.wave * 7919) >>> 0), world.owned);
+    cards = drawCards(mulberry32((Date.now() ^ world.wave * 7919) >>> 0), world.owned, 3, world.act);
     audio.handle('ui');
   }
 }
@@ -144,4 +144,3 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) loop.stop();
   else loop.start();
 });
-

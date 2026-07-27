@@ -4,6 +4,7 @@ export interface Intent {
   move: { x: number; y: number };
   drop: boolean;
   fire: boolean;
+  missile: boolean;
   /** world-space aim point; resolved by main.ts from mouse or aim stick */
   aim?: { x: number; y: number } | null;
 }
@@ -25,10 +26,13 @@ const inCircle = (cx: number, cy: number, b: { x: number; y: number; r: number }
 export class Input {
   private keys = new Set<string>();
   private dropQueued = false;
+  private missileQueued = false;
   private confirmQueued = false;
   private cardKeyQueued = -1;
   private mouseFire = false;
   private firePointers = new Set<number>();
+  private fireHoldStart = 0;
+  private fireHoldSpent = false;
   private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private mouseAim: { x: number; y: number } | null = null;
@@ -46,6 +50,7 @@ export class Input {
       if (e.repeat) return;
       this.keys.add(e.code);
       if (e.code === 'Space') { this.dropQueued = true; e.preventDefault(); }
+      if (e.code === 'KeyE') this.missileQueued = true;
       if (e.code === 'Enter') this.confirmQueued = true;
       if (e.code === 'Digit1') this.cardKeyQueued = 0;
       if (e.code === 'Digit2') this.cardKeyQueued = 1;
@@ -73,6 +78,10 @@ export class Input {
       }
       const b = touchButtons();
       if (canvasPt && inCircle(canvasPt[0], canvasPt[1], b.fire)) {
+        if (this.firePointers.size === 0) {
+          this.fireHoldStart = performance.now();
+          this.fireHoldSpent = false;
+        }
         this.firePointers.add(e.pointerId);
       } else if (canvasPt && inCircle(canvasPt[0], canvasPt[1], b.drop)) {
         this.dropQueued = true;
@@ -119,10 +128,17 @@ export class Input {
     }
     const drop = this.dropQueued;
     this.dropQueued = false;
+    if (this.firePointers.size > 0 && !this.fireHoldSpent && performance.now() - this.fireHoldStart >= 350) {
+      this.missileQueued = true;
+      this.fireHoldSpent = true;
+    }
+    const missile = this.missileQueued;
+    this.missileQueued = false;
     return {
       move: { x, y },
       drop,
       fire: this.keys.has('KeyF') || this.mouseFire || this.firePointers.size > 0,
+      missile,
       aim: null,
     };
   }

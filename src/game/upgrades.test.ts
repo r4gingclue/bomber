@@ -33,3 +33,25 @@ describe('stat application', () => {
     expect(s.magnetic).toBe(true);
   });
 });
+
+describe('AA Missiles card', () => {
+  it('is act-gated: absent before act 2, present from act 2', () => {
+    for (let seed = 0; seed < 30; seed++) {
+      for (const c of drawCards(mulberry32(seed), new Set(), 3, 1)) {
+        expect(c.id).not.toBe('missiles');
+      }
+    }
+    const everSeen = new Set<string>();
+    for (let seed = 0; seed < 60; seed++) {
+      for (const c of drawCards(mulberry32(seed), new Set(), 3, 2)) everSeen.add(c.id);
+    }
+    expect(everSeen.has('missiles')).toBe(true);
+  });
+
+  it('stacks +2 up to cap 6', () => {
+    const s = defaultStats();
+    const card = CARD_POOL.find(c => c.id === 'missiles')!;
+    card.apply(s); card.apply(s); card.apply(s); card.apply(s);
+    expect(s.missileCap).toBe(6);
+  });
+});

@@ -51,6 +51,7 @@ export class World {
   kills = 0;
   drops = 0;
   hitDrops = 0;
+  missileStock = 0;
   sonarTimer = 0;
   sonarCycle = 0;
   camX = 0;
@@ -78,6 +79,7 @@ export class World {
     this.waveInAct++;
     const budgetWave = this.waveInAct === 4 ? this.wave + 2 : this.wave; // finale stub: bigger wave
     for (const kind of composeWave(budgetWave, this.rng, biomeForAct(this.act))) this.spawn(kind);
+    this.missileStock = Math.min(this.stats.missileCap, this.missileStock + (this.stats.missileCap > 0 ? 1 : 0));
     if (this.stats.sonar) {
       this.sonarTimer = 3;
       this.sonarCycle = 8;
@@ -249,12 +251,26 @@ export class World {
         this.events.push('fire');
       }
     }
+    if (intent.missile && this.missileStock > 0) {
+      const target = this.nearestAir(p.x, p.y);
+      if (target) {
+        this.missileStock--;
+        const d = Math.hypot(target.x - p.x, target.y - p.y) || 1;
+        this.shots.push({
+          id: this.nextId++, ptype: 'pmissile',
+          x: p.x, y: p.y - 4,
+          vx: ((target.x - p.x) / d) * 200, vy: ((target.y - p.y) / d) * 200,
+          age: 0, life: 4, damage: 24,
+        });
+        this.events.push('fire');
+      }
+    }
     // point defense
     if (this.stats.pointDefense) {
       if (p.pdCd > 0) p.pdCd -= dt;
       if (p.pdCd <= 0) {
         const near = this.shots.find(s =>
-          s.ptype !== 'bullet' && Math.hypot(s.x - p.x, s.y - p.y) < 45);
+          s.ptype !== 'bullet' && s.ptype !== 'pmissile' && Math.hypot(s.x - p.x, s.y - p.y) < 45);
         if (near) {
           near.age = near.life;
           p.pdCd = 0.4;
@@ -486,10 +502,52 @@ export class World {
       s.kind === 'gunboat' || (s.kind === 'mine' && s.y < WATERLINE + 16);
   }
 
+  private nearestAir(x: number, y: number): Sub | null {
+    let best: Sub | null = null;
+    let bd = Infinity;
+    for (const s of this.subs) {
+      if (!AIR.has(s.kind)) continue;
+      const d = Math.hypot(s.x - x, s.y - y);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+
   private updateShot(p: Projectile, dt: number): void {
     if (p.age >= p.life) return;
     p.age += dt;
     const pl = this.player;
+    if (p.ptype === 'pmissile') {
+      if (!isWater(this.terrain, p.x) && p.y >= surfaceAt(this.terrain, p.x)) {
+        p.age = p.life;
+        this.boomParticles(p.x, p.y, 3);
+        return;
+      }
+      const target = this.nearestAir(p.x, p.y);
+      if (target) steerHoming(p, target.x, target.y, 200, 3.0, dt);
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      for (const s of this.subs) {
+        if (!AIR.has(s.kind)) continue;
+        if (circlesOverlap({ x: p.x, y: p.y, r: 4 }, { x: s.x, y: s.y, r: 10 })) {
+          s.hp -= p.damage;
+          s.hitFlash = 0.1;
+          p.age = p.life;
+          if (s.hp <= 0 && this.destroySub(s)) {
+            this.score += BASE_SCORE[s.kind];
+            this.kills++;
+            if (s.kind !== 'scout') {
+              this.boomParticles(s.x, s.y, 10);
+              this.rings.push({ x: s.x, y: s.y, age: 0 });
+              this.shake = Math.min(6, this.shake + 2);
+              this.events.push('boom');
+            }
+          }
+          return;
+        }
+      }
+      return;
+    }
     if (p.ptype === 'torpedo' && p.age < 3.5) {
       steerHoming(p, pl.x, pl.y, 90, 2.5, dt);
     } else if (p.ptype === 'sam') {
