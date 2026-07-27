@@ -1,4 +1,4 @@
-import { VIEW_W, VIEW_H } from './game/consts';
+import { RENDER_H, RENDER_SCALE, RENDER_W } from './game/consts';
 import { Loop } from './core/loop';
 import { Input } from './core/input';
 import { AudioSys } from './core/audio';
@@ -9,11 +9,13 @@ import { drawCards, type UpgradeCard } from './game/upgrades';
 import { makeSheet } from './render/sprites';
 import { Renderer, cardRect } from './render/renderer';
 import { aimFromStick } from './game/aim';
+import { clientToWorld, fitViewport, type Insets } from './render/viewport';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
-canvas.width = VIEW_W;
-canvas.height = VIEW_H;
+canvas.width = RENDER_W;
+canvas.height = RENDER_H;
 const ctx = canvas.getContext('2d')!;
+ctx.scale(RENDER_SCALE, RENDER_SCALE);
 
 const input = new Input();
 const audio = new AudioSys();
@@ -25,22 +27,29 @@ let cards: UpgradeCard[] = [];
 let elapsed = 0;
 let introT = 0;
 
-// --- scaling: integer scale, letterbox via CSS size
-let scale = 1;
+function safeInsets(): Insets {
+  const css = getComputedStyle(document.documentElement);
+  const n = (name: string) => Number.parseFloat(css.getPropertyValue(name)) || 0;
+  return { top: n('--sat'), right: n('--sar'), bottom: n('--sab'), left: n('--sal') };
+}
+
+let viewport = fitViewport(innerWidth, innerHeight, safeInsets());
 function resize(): void {
-  scale = Math.max(1, Math.floor(Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H)));
-  canvas.style.width = `${VIEW_W * scale}px`;
-  canvas.style.height = `${VIEW_H * scale}px`;
+  viewport = fitViewport(innerWidth, innerHeight, safeInsets());
+  Object.assign(canvas.style, {
+    position: 'fixed',
+    left: `${viewport.x}px`,
+    top: `${viewport.y}px`,
+    width: `${viewport.width}px`,
+    height: `${viewport.height}px`,
+  });
 }
 window.addEventListener('resize', resize);
 resize();
 
 input.attach(canvas);
 input.onGesture = () => audio.resume();
-input.toCanvas = (x, y) => {
-  const r = canvas.getBoundingClientRect();
-  return [(x - r.left) / scale, (y - r.top) / scale];
-};
+input.toCanvas = (clientX, clientY) => clientToWorld(clientX, clientY, viewport);
 input.onTap = (cx, cy) => {
   if (state.phase === 'menu') startRun();
   else if (state.phase === 'gameover') {

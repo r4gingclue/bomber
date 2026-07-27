@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Input, touchButtons } from './input';
+import { clientToWorld } from '../render/viewport';
 
 let now = 0;
 
@@ -21,7 +22,7 @@ function setupInput(): { input: Input; canvas: EventTarget; keyboard: EventTarge
   vi.stubGlobal('window', keyboard);
   const canvas = new EventTarget();
   const input = new Input();
-  input.toCanvas = (x, y) => [x, y];
+  input.toCanvas = (x, y) => ({ x, y });
   input.attach(canvas as unknown as HTMLElement);
   return { input, canvas, keyboard };
 }
@@ -34,6 +35,14 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it('maps the center of a 960x540 display back to 480x270 simulation space', () => {
+  const world = clientToWorld(580, 320, {
+    x: 100, y: 50, width: 960, height: 540, scale: 1,
+  });
+
+  expect(world).toEqual({ x: 240, y: 135 });
 });
 
 describe('missile input', () => {

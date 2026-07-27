@@ -39,8 +39,8 @@ export class Input {
   touchSeen = false;
   /** main.ts sets this to receive canvas-space taps for UI hit testing */
   onTap: ((cx: number, cy: number) => void) | null = null;
-  /** main.ts sets this to convert client coords → canvas coords */
-  toCanvas: ((x: number, y: number) => [number, number]) | null = null;
+  /** main.ts sets this to convert client coords → simulation coords */
+  toCanvas: ((x: number, y: number) => { x: number; y: number }) | null = null;
   /** any user gesture happened (for audio unlock) */
   onGesture: (() => void) | null = null;
 
@@ -62,23 +62,23 @@ export class Input {
     el.addEventListener('pointerdown', e => {
       this.onGesture?.();
       const canvasPt = this.toCanvas ? this.toCanvas(e.clientX, e.clientY) : null;
-      if (canvasPt && this.onTap) this.onTap(canvasPt[0], canvasPt[1]);
+      if (canvasPt && this.onTap) this.onTap(canvasPt.x, canvasPt.y);
       if (e.pointerType === 'mouse') {
         this.mouseFire = true;
-        if (canvasPt) this.mouseAim = { x: canvasPt[0], y: canvasPt[1] };
+        if (canvasPt) this.mouseAim = canvasPt;
         return;
       }
       this.touchSeen = true;
       // zone split in canvas space so letterboxing can't misroute edge touches
-      const leftHalf = canvasPt ? canvasPt[0] < VIEW_W / 2 : e.clientX < window.innerWidth / 2;
+      const leftHalf = canvasPt ? canvasPt.x < VIEW_W / 2 : e.clientX < window.innerWidth / 2;
       if (leftHalf) {
         this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
         return;
       }
       const b = touchButtons();
-      if (canvasPt && inCircle(canvasPt[0], canvasPt[1], b.fire)) {
+      if (canvasPt && inCircle(canvasPt.x, canvasPt.y, b.fire)) {
         this.firePointers.set(e.pointerId, { startedAt: performance.now(), missileFired: false });
-      } else if (canvasPt && inCircle(canvasPt[0], canvasPt[1], b.drop)) {
+      } else if (canvasPt && inCircle(canvasPt.x, canvasPt.y, b.drop)) {
         this.dropQueued = true;
       } else {
         this.aimStick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
@@ -86,8 +86,7 @@ export class Input {
     });
     el.addEventListener('pointermove', e => {
       if (e.pointerType === 'mouse' && this.toCanvas) {
-        const [cx, cy] = this.toCanvas(e.clientX, e.clientY);
-        this.mouseAim = { x: cx, y: cy };
+        this.mouseAim = this.toCanvas(e.clientX, e.clientY);
         return;
       }
       if (this.stick.active && e.pointerId === this.stick.id) {
