@@ -1,0 +1,390 @@
+{
+  "schemaVersion": 2,
+  "recordedOn": "2026-07-27",
+  "sourceBaselineCommit": "70d325f334b417f7ada9db866f8a23b3e4bdaa61",
+  "rawFile": "heavy-combat-samples.csv",
+  "rawSha256": "c9d8ec742262e724073f5c0132d675014c978448e587c79b5af795be4c3a1f4f",
+  "rawBytes": 4116875,
+  "run": {
+    "startedAt": "2026-07-27T14:32:48.565Z",
+    "endedAt": "2026-07-27T14:42:48.570Z",
+    "durationMs": 600004.9,
+    "sampleCount": 72001,
+    "renderDurationMs": {
+      "minimum": 0.1,
+      "maximum": 1,
+      "mean": 0.267016
+    },
+    "windowDurationMs": 30000,
+    "windowCount": 21,
+    "tierAtStart": "full",
+    "tierAtEnd": "full",
+    "tierTransitions": []
+  },
+  "methodology": {
+    "browser": "Codex In-app Browser",
+    "viewportCssPixels": {
+      "width": 1920,
+      "height": 1080
+    },
+    "uiBackingPixels": {
+      "width": 3840,
+      "height": 2160
+    },
+    "devicePixelRatioOverride": 2,
+    "measurement": "performance.now() immediately before and after Renderer.draw(); World.update() and all simulation work were outside the measured interval.",
+    "capture": "Each row was appended after QualityMonitor.sample(renderMs), with the tier selected by that sample. The temporary export work was outside the measured interval.",
+    "scenario": "A temporary production-build harness restaged a representative heavy-combat frame every 100 ms: 18 entities, 48 projectiles, 6 charges, 8 rings, and 120 particles.",
+    "simulation": "The World.update implementation was unchanged. Temporary state restaging ran outside the measured render bracket.",
+    "windowing": "Thirty-second buckets start at capture elapsed time zero. The final partial bucket contains the sample that crossed the ten-minute threshold.",
+    "cleanup": "The capture/export and scenario harnesses were removed before the final production build and commit.",
+    "limitation": "The browser did not expose JavaScript heap telemetry."
+  },
+  "tierHistory": [
+    {
+      "tier": "full",
+      "firstSample": 1,
+      "lastSample": 72001,
+      "firstElapsedMs": 5.1,
+      "lastElapsedMs": 600004.9
+    }
+  ],
+  "windows": [
+    {
+      "window": 1,
+      "rangeStartMs": 0,
+      "rangeEndMs": 30000,
+      "firstElapsedMs": 5.1,
+      "lastElapsedMs": 29994.2,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.267667
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 2,
+      "rangeStartMs": 30000,
+      "rangeEndMs": 60000,
+      "firstElapsedMs": 30002.5,
+      "lastElapsedMs": 59994.3,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.263611
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 3,
+      "rangeStartMs": 60000,
+      "rangeEndMs": 90000,
+      "firstElapsedMs": 60002.7,
+      "lastElapsedMs": 89994.6,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.26725
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 4,
+      "rangeStartMs": 90000,
+      "rangeEndMs": 120000,
+      "firstElapsedMs": 90002.8,
+      "lastElapsedMs": 119994.7,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.265694
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 5,
+      "rangeStartMs": 120000,
+      "rangeEndMs": 150000,
+      "firstElapsedMs": 120002.9,
+      "lastElapsedMs": 149994.7,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.268111
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 6,
+      "rangeStartMs": 150000,
+      "rangeEndMs": 180000,
+      "firstElapsedMs": 150003,
+      "lastElapsedMs": 179994.2,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.265361
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 7,
+      "rangeStartMs": 180000,
+      "rangeEndMs": 210000,
+      "firstElapsedMs": 180003.2,
+      "lastElapsedMs": 209995,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.267556
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 8,
+      "rangeStartMs": 210000,
+      "rangeEndMs": 240000,
+      "firstElapsedMs": 210003.2,
+      "lastElapsedMs": 239995.1,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.267528
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 9,
+      "rangeStartMs": 240000,
+      "rangeEndMs": 270000,
+      "firstElapsedMs": 240003.4,
+      "lastElapsedMs": 269995.1,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.266778
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 10,
+      "rangeStartMs": 270000,
+      "rangeEndMs": 300000,
+      "firstElapsedMs": 270003.4,
+      "lastElapsedMs": 299995.3,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.265139
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 11,
+      "rangeStartMs": 300000,
+      "rangeEndMs": 330000,
+      "firstElapsedMs": 300003.6,
+      "lastElapsedMs": 329995.5,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.268056
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 12,
+      "rangeStartMs": 330000,
+      "rangeEndMs": 360000,
+      "firstElapsedMs": 330003.7,
+      "lastElapsedMs": 359995.5,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.270611
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 13,
+      "rangeStartMs": 360000,
+      "rangeEndMs": 390000,
+      "firstElapsedMs": 360003.9,
+      "lastElapsedMs": 389995.1,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.263444
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 14,
+      "rangeStartMs": 390000,
+      "rangeEndMs": 420000,
+      "firstElapsedMs": 390003.4,
+      "lastElapsedMs": 419995.8,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.270833
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 15,
+      "rangeStartMs": 420000,
+      "rangeEndMs": 450000,
+      "firstElapsedMs": 420004.1,
+      "lastElapsedMs": 449995.9,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.264333
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 16,
+      "rangeStartMs": 450000,
+      "rangeEndMs": 480000,
+      "firstElapsedMs": 450004.1,
+      "lastElapsedMs": 479996.1,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.26675
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 17,
+      "rangeStartMs": 480000,
+      "rangeEndMs": 510000,
+      "firstElapsedMs": 480004.3,
+      "lastElapsedMs": 509996.1,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.267694
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 18,
+      "rangeStartMs": 510000,
+      "rangeEndMs": 540000,
+      "firstElapsedMs": 510004.5,
+      "lastElapsedMs": 539996.2,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.269139
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 19,
+      "rangeStartMs": 540000,
+      "rangeEndMs": 570000,
+      "firstElapsedMs": 540004.7,
+      "lastElapsedMs": 569996.4,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.4,
+        "mean": 0.267417
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 20,
+      "rangeStartMs": 570000,
+      "rangeEndMs": 600000,
+      "firstElapsedMs": 570004.8,
+      "lastElapsedMs": 599996.5,
+      "sampleCount": 3600,
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.5,
+        "mean": 0.267333
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 21,
+      "rangeStartMs": 600000,
+      "rangeEndMs": 630000,
+      "firstElapsedMs": 600004.9,
+      "lastElapsedMs": 600004.9,
+      "sampleCount": 1,
+      "renderDurationMs": {
+        "minimum": 0.3,
+        "maximum": 0.3,
+        "mean": 0.3
+      },
+      "tiers": [
+        "full"
+      ]
+    }
+  ]
+}

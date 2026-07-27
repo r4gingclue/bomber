@@ -96,13 +96,18 @@ combat cannot hold its selected quality tier.
   border pulse that still communicates a hit.
 - [x] Ten-minute heavy-combat observation completes with no console error,
   obscured object, cropped field, runaway memory growth, or failure to hold the
-  automatically selected target tier. The run lasted 10m23s across twenty
-  30-second windows, held `full`, averaged 0.29–0.31 ms render duration, reached
-  a 0.90 ms maximum, and produced no warning, error, or tier transition; the
-  [tracked timing record](painted-graphics-artifacts/heavy-combat-timing.json)
-  preserves every window and the source methodology. The browser exposed no
-  heap telemetry; no increasing render time, fault, hang, or other observable
-  runaway-memory symptom appeared.
+  automatically selected target tier. The fresh run lasted 600,004.9 ms and
+  retained all 72,001 frame samples in a
+  [tracked raw CSV](painted-graphics-artifacts/heavy-combat-samples.csv). Render
+  duration was 0.267016 ms mean, 0.1 ms minimum, and 1.0 ms maximum; every
+  sample reported `full`, with no tier transition. The
+  [derived summary](painted-graphics-artifacts/heavy-combat-summary.json)
+  contains twenty complete 30-second windows plus the final threshold-crossing
+  sample, tier history, and source methodology. `npm run
+  validate:heavy-combat` recomputes the summary and fails on any mismatch. The
+  browser produced no warning or error and exposed no heap telemetry; no
+  increasing render time, fault, hang, or other observable runaway-memory
+  symptom appeared.
 
 ## Screenshot evidence
 
@@ -115,8 +120,9 @@ and portrait-phone shape.
 | Coast | [`coast-desktop`](painted-graphics-artifacts/coast-desktop-1920x1080-dpr1.png) | [`coast-landscape`](painted-graphics-artifacts/coast-landscape-844x390-dpr3.png) | [`coast-portrait`](painted-graphics-artifacts/coast-portrait-390x844-dpr3.png) |
 | Inland | [`inland-desktop`](painted-graphics-artifacts/inland-desktop-1920x1080-dpr1.png) | [`inland-landscape`](painted-graphics-artifacts/inland-landscape-844x390-dpr3.png) | [`inland-portrait`](painted-graphics-artifacts/inland-portrait-390x844-dpr3.png) |
 
-The tracked artifact directory contains the nine required representative PNGs
-and the raw timing record. The PNG dimensions match their names.
+The tracked artifact directory contains the nine required representative PNGs,
+the raw per-frame timing CSV, and its derived summary JSON. The PNG dimensions
+match their names.
 
 ## Automated gates
 
@@ -124,8 +130,10 @@ and the raw timing record. The PNG dimensions match their names.
 - [x] `npx vitest run` — 23 files / 159 tests passed.
 - [x] `npm run build` — 31 modules transformed; production preview ran for 30
   seconds with no warning or error.
-- [x] Local documentation-link and artifact validation — all 14 local Markdown
-  links resolve; the nine cited PNGs and timing JSON are tracked.
+- [x] `npm run validate:heavy-combat` — all 72,001 CSV samples reproduce the
+  retained duration, render statistics, window summaries, and tier history.
+- [x] Local documentation-link and artifact validation — every local Markdown
+  link resolves to a tracked file.
 - [x] `git diff --check`
 - [x] `git ls-files | rg '\.(zip|rar)$' && exit 1 || true` (no tracked source
   archives)
