@@ -1,8 +1,8 @@
-import { VIEW_W, VIEW_H, WATERLINE } from '../game/consts';
+import { RENDER_H, RENDER_SCALE, RENDER_W, VIEW_W, VIEW_H, WATERLINE } from '../game/consts';
 import type { World } from '../game/world';
 import type { Phase } from '../game/state';
 import type { UpgradeCard } from '../game/upgrades';
-import { touchButtons } from '../core/input';
+import { uiLayout, type UiLayout } from './ui-layout';
 import type { Sheet } from './sprites';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS } from '../game/terrain';
@@ -14,7 +14,8 @@ import { budgetedParticlesNewestFirst, effectBudget } from './effects';
 import type { QualityTier } from './quality';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
-  return { x: 40 + i * 140, y: 80, w: 120, h: 110 };
+  const card = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, false).cards[i];
+  return { x: card.x / RENDER_SCALE, y: card.y / RENDER_SCALE, w: card.w / RENDER_SCALE, h: card.h / RENDER_SCALE };
 }
 
 interface CloudSpec { x: number; y: number; w: number }
@@ -127,8 +128,10 @@ export class Renderer {
     this.drawParticles(world, cam, oy, tier);
     this.drawGrading(world, tier);
 
-    this.hud(world);
-    if (touchUI && phase === 'playing') this.touchOverlay();
+    const layout = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, touchUI);
+    this.damageFlash(world, this.reducedFlash());
+    this.hud(world, layout);
+    if (touchUI && phase === 'playing') this.touchOverlay(layout);
     if (phase === 'menu') this.menu();
     if (phase === 'upgrade') this.upgrade(cards);
     if (phase === 'actIntro') this.actIntro(world);
@@ -648,48 +651,77 @@ export class Renderer {
   private text(s: string, x: number, y: number, size = 8, col = '#e8f2ff', center = false): void {
     const { ctx } = this;
     ctx.fillStyle = col;
-    ctx.font = `${size}px monospace`;
+    ctx.font = `${size}px system-ui, sans-serif`;
     ctx.textAlign = center ? 'center' : 'left';
     ctx.fillText(s, x, y);
   }
 
-  private hud(world: World): void {
+  private hud(world: World, layout: UiLayout): void {
     const { ctx } = this;
+    const { x, y } = layout.hud;
+    ctx.save();
+    ctx.scale(1 / RENDER_SCALE, 1 / RENDER_SCALE);
     ctx.fillStyle = '#000a';
-    ctx.fillRect(4, 4, 84, 22);
+    ctx.fillRect(x, y, 250, 72);
     ctx.fillStyle = '#42212a';
-    ctx.fillRect(8, 8, 60, 5);
+    ctx.fillRect(x + 12, y + 16, 120, 10);
     ctx.fillStyle = '#e04848';
-    ctx.fillRect(8, 8, Math.max(0, 60 * world.player.hp / world.stats.maxHp), 5);
+    ctx.fillRect(x + 12, y + 16, Math.max(0, 120 * world.player.hp / world.stats.maxHp), 10);
     for (let i = 0; i < world.stats.maxCharges; i++) {
       ctx.fillStyle = i < world.stats.maxCharges - world.charges.length ? '#ffd866' : '#444';
-      ctx.fillRect(8 + i * 7, 17, 5, 6);
+      ctx.fillRect(x + 12 + i * 14, y + 38, 10, 12);
     }
     if (world.stats.missileCap > 0) {
       for (let i = 0; i < world.stats.missileCap; i++) {
         ctx.fillStyle = i < world.missileStock ? '#8ad0ff' : '#444';
-        ctx.fillRect(60 + i * 5, 17, 3, 6);
+        ctx.fillRect(x + 116 + i * 10, y + 38, 6, 12);
       }
     }
     ctx.fillStyle = '#e8f2ff';
-    ctx.font = '8px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`ACT ${world.act} · ${world.waveInAct >= 4 ? 'FINALE' : 'WAVE ' + world.waveInAct}`, VIEW_W - 8, 12);
-    ctx.fillText(`${world.score}`, VIEW_W - 8, 22);
+    ctx.font = '16px system-ui, sans-serif';
     ctx.textAlign = 'left';
+    ctx.fillText(`ACT ${world.act} · ${world.waveInAct >= 4 ? 'FINALE' : 'WAVE ' + world.waveInAct}`, x + 12, y + 64);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${world.score}`, x + 238, y + 25);
+    ctx.textAlign = 'left';
+    ctx.restore();
   }
 
-  private touchOverlay(): void {
+  private touchOverlay(layout: UiLayout): void {
     const { ctx } = this;
-    const b = touchButtons();
-    for (const [key, btn] of Object.entries(b) as ['fire' | 'drop', { x: number; y: number; r: number }][]) {
+    ctx.save();
+    ctx.scale(1 / RENDER_SCALE, 1 / RENDER_SCALE);
+    for (const [key, btn] of Object.entries({ move: layout.move, fire: layout.fire, drop: layout.drop }) as ['move' | 'fire' | 'drop', { x: number; y: number; r: number }][]) {
       ctx.strokeStyle = 'rgba(232,242,255,0.5)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
       ctx.stroke();
-      this.text(key === 'fire' ? 'FIRE' : 'DROP', btn.x, btn.y + 3, 7, 'rgba(232,242,255,0.7)', true);
+      this.text(key.toUpperCase(), btn.x, btn.y + 6, 14, 'rgba(232,242,255,0.7)', true);
     }
+    ctx.restore();
+  }
+
+  private reducedFlash(): boolean {
+    if (typeof document === 'undefined') return false;
+    return getComputedStyle(document.documentElement).getPropertyValue('--reduced-flash').trim() === '1';
+  }
+
+  private damageFlash(world: World, reducedFlash: boolean): void {
+    const pulse = Math.max(0, Math.min(1, (world.player.iframes - 0.55) / 0.25));
+    if (pulse <= 0) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.scale(1 / RENDER_SCALE, 1 / RENDER_SCALE);
+    if (reducedFlash) {
+      ctx.strokeStyle = `rgba(255, 196, 120, ${(pulse * 0.8).toFixed(2)})`;
+      ctx.lineWidth = 8;
+      ctx.strokeRect(4, 4, RENDER_W - 8, RENDER_H - 8);
+    } else {
+      ctx.fillStyle = `rgba(255, 240, 204, ${(pulse * 0.22).toFixed(2)})`;
+      ctx.fillRect(0, 0, RENDER_W, RENDER_H);
+    }
+    ctx.restore();
   }
 
   private overlay(): void {
@@ -707,18 +739,23 @@ export class Renderer {
   }
 
   private upgrade(cards: UpgradeCard[]): void {
+    const layout = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, false);
+    const { ctx } = this;
     this.overlay();
-    this.text('WAVE CLEARED — choose an upgrade', VIEW_W / 2, 60, 10, '#ffd866', true);
+    ctx.save();
+    ctx.scale(1 / RENDER_SCALE, 1 / RENDER_SCALE);
+    this.text('WAVE CLEARED — choose an upgrade', layout.objective.x, layout.objective.y + 84, 20, '#ffd866', true);
     cards.forEach((card, i) => {
-      const r = cardRect(i);
-      this.ctx.fillStyle = '#12233d';
-      this.ctx.fillRect(r.x, r.y, r.w, r.h);
-      this.ctx.strokeStyle = '#9fd8ff';
-      this.ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
-      this.text(`[${i + 1}]`, r.x + r.w / 2, r.y + 20, 10, '#ffd866', true);
-      this.text(card.name, r.x + r.w / 2, r.y + 45, 9, '#e8f2ff', true);
-      this.text(card.desc, r.x + r.w / 2, r.y + 70, 7, '#9fd8ff', true);
+      const r = layout.cards[i];
+      ctx.fillStyle = '#12233d';
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = '#9fd8ff';
+      ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+      this.text(`[${i + 1}]`, r.x + r.w / 2, r.y + 40, 20, '#ffd866', true);
+      this.text(card.name, r.x + r.w / 2, r.y + 90, 18, '#e8f2ff', true);
+      this.text(card.desc, r.x + r.w / 2, r.y + 140, 14, '#9fd8ff', true);
     });
+    ctx.restore();
   }
 
   private gameover(world: World): void {

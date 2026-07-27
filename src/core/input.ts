@@ -1,4 +1,5 @@
-import { VIEW_W, VIEW_H } from '../game/consts';
+import { RENDER_H, RENDER_SCALE, RENDER_W, VIEW_W } from '../game/consts';
+import { uiLayout, type UiCircle } from '../render/ui-layout';
 
 export interface Intent {
   move: { x: number; y: number };
@@ -9,14 +10,22 @@ export interface Intent {
   aim?: { x: number; y: number } | null;
 }
 
-/** Canvas-space touch button layout, shared with the renderer. */
+export interface TouchButtons {
+  fire: UiCircle;
+  drop: UiCircle;
+}
+
+/** Simulation-space controls derived from the render-space UI layout. */
 export function touchButtons(): {
-  fire: { x: number; y: number; r: number };
-  drop: { x: number; y: number; r: number };
+  fire: UiCircle;
+  drop: UiCircle;
 } {
+  const layout = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  const toSimulation = ({ x, y, r }: UiCircle): UiCircle =>
+    ({ x: x / RENDER_SCALE, y: y / RENDER_SCALE, r: r / RENDER_SCALE });
   return {
-    fire: { x: VIEW_W - 30, y: VIEW_H - 80, r: 18 },
-    drop: { x: VIEW_W - 30, y: VIEW_H - 32, r: 18 },
+    fire: toSimulation(layout.fire),
+    drop: toSimulation(layout.drop),
   };
 }
 
@@ -31,6 +40,7 @@ export class Input {
   private cardKeyQueued = -1;
   private mouseFire = false;
   private touchFireQueued = false;
+  private buttons: TouchButtons = touchButtons();
   private firePointers = new Map<number, { startedAt: number; missileFired: boolean }>();
   private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
@@ -75,7 +85,7 @@ export class Input {
         this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
         return;
       }
-      const b = touchButtons();
+      const b = this.buttons;
       if (canvasPt && inCircle(canvasPt.x, canvasPt.y, b.fire)) {
         this.firePointers.set(e.pointerId, { startedAt: performance.now(), missileFired: false });
       } else if (canvasPt && inCircle(canvasPt.x, canvasPt.y, b.drop)) {

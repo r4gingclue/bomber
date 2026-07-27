@@ -10,7 +10,11 @@
       --sar: env(safe-area-inset-right, 0px);
       --sab: env(safe-area-inset-bottom, 0px);
       --sal: env(safe-area-inset-left, 0px);
+      --reduced-flash: 0;
       background: #101418;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :root { --reduced-flash: 1; }
     }
     html, body { margin: 0; height: 100%; overflow: hidden; }
     canvas { image-rendering: auto; touch-action: none; }

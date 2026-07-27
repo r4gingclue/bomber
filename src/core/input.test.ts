@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Input, touchButtons } from './input';
 import { clientToWorld } from '../render/viewport';
+import { uiLayout } from '../render/ui-layout';
 
 let now = 0;
 
@@ -43,6 +44,16 @@ it('maps the center of a 960x540 display back to 480x270 simulation space', () =
   });
 
   expect(world).toEqual({ x: 240, y: 135 });
+});
+
+it('maps render-space touch controls back to the matching simulation hit region', () => {
+  const renderFire = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true).fire;
+
+  expect(touchButtons().fire).toEqual({
+    x: renderFire.x / 2,
+    y: renderFire.y / 2,
+    r: renderFire.r / 2,
+  });
 });
 
 describe('missile input', () => {
