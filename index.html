@@ -18,10 +18,13 @@
     }
     html, body { margin: 0; height: 100%; overflow: hidden; }
     canvas { image-rendering: auto; touch-action: none; }
+    #game { z-index: 0; }
+    #ui { position: fixed; inset: 0; z-index: 1; }
   </style>
 </head>
 <body>
   <canvas id="game"></canvas>
+  <canvas id="ui" aria-hidden="true"></canvas>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

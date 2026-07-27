@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Input, touchButtons } from './input';
+import { Input, touchButtons, touchControls } from './input';
 import { clientToWorld } from '../render/viewport';
 import { uiLayout } from '../render/ui-layout';
 
@@ -14,7 +14,7 @@ function event(type: string, props: Record<string, unknown> = {}): Event {
 }
 
 function touchEvent(type: 'pointerdown' | 'pointerup' | 'pointercancel', pointerId: number): Event {
-  const fire = touchButtons().fire;
+  const fire = touchControls().fire;
   return event(type, { pointerType: 'touch', pointerId, clientX: fire.x, clientY: fire.y });
 }
 
@@ -54,6 +54,35 @@ it('maps render-space touch controls back to the matching simulation hit region'
     y: renderFire.y / 2,
     r: renderFire.r / 2,
   });
+});
+
+it('uses the visible MOVE circle as the movement hitbox', () => {
+  const { input, canvas } = setupInput();
+  const move = touchControls().move;
+
+  canvas.dispatchEvent(event('pointerdown', { pointerType: 'touch', pointerId: 7, clientX: move.x, clientY: move.y }));
+  canvas.dispatchEvent(event('pointermove', { pointerType: 'touch', pointerId: 7, clientX: move.x + 40, clientY: move.y }));
+
+  expect(input.poll().move).toEqual({ x: 1, y: 0 });
+});
+
+it('does not turn a far left-half touch outside MOVE into movement', () => {
+  const { input, canvas } = setupInput();
+
+  canvas.dispatchEvent(event('pointerdown', { pointerType: 'touch', pointerId: 8, clientX: 0, clientY: 0 }));
+  canvas.dispatchEvent(event('pointermove', { pointerType: 'touch', pointerId: 8, clientX: 40, clientY: 0 }));
+
+  expect(input.poll().move).toEqual({ x: 0, y: 0 });
+  expect(input.aimStickDir()).toEqual({ dx: 40, dy: 0 });
+});
+
+it('queues DROP from its visible touch target', () => {
+  const { input, canvas } = setupInput();
+  const drop = touchControls().drop;
+
+  canvas.dispatchEvent(event('pointerdown', { pointerType: 'touch', pointerId: 9, clientX: drop.x, clientY: drop.y }));
+
+  expect(input.poll().drop).toBe(true);
 });
 
 describe('missile input', () => {

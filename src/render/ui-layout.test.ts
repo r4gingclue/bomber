@@ -11,7 +11,7 @@ it('keeps phone touch controls inside safe areas', () => {
 it('uses compact desktop controls and pins the HUD to the safe top-left edge', () => {
   const l = uiLayout(960, 540, { top: 12, right: 0, bottom: 0, left: 18 }, false);
 
-  expect(l.hud).toEqual({ x: 38, y: 32 });
+  expect(l.hud).toMatchObject({ x: 38, y: 32 });
   expect(l.move.r).toBe(38);
 });
 
@@ -22,4 +22,17 @@ it('keeps upgrade cards inside narrow safe-area bounds', () => {
   expect(l.cards[2].x + l.cards[2].w).toBeLessThanOrEqual(800);
   expect(l.cards[0].y).toBeGreaterThanOrEqual(47);
   expect(l.cards[0].y + l.cards[0].h).toBeLessThanOrEqual(506);
+});
+
+it.each([
+  [390, 844],
+  [320, 568],
+])('keeps portrait HUD text and touch targets physically usable at %ix%i', (w, h) => {
+  const l = uiLayout(w, h, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+
+  expect(l.move.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.fire.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.hud.fontSize).toBeGreaterThanOrEqual(14);
+  expect(l.hud.x + l.hud.w).toBeLessThanOrEqual(w);
 });

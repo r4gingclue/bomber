@@ -1,4 +1,4 @@
-import { RENDER_H, RENDER_SCALE, RENDER_W, VIEW_W } from '../game/consts';
+import { RENDER_H, RENDER_SCALE, RENDER_W } from '../game/consts';
 import { uiLayout, type UiCircle } from '../render/ui-layout';
 
 export interface Intent {
@@ -10,22 +10,26 @@ export interface Intent {
   aim?: { x: number; y: number } | null;
 }
 
-export interface TouchButtons {
+export interface TouchControls {
+  move: UiCircle;
   fire: UiCircle;
   drop: UiCircle;
 }
 
-/** Simulation-space controls derived from the render-space UI layout. */
-export function touchButtons(): {
-  fire: UiCircle;
-  drop: UiCircle;
-} {
+/** CSS-pixel touch controls shared with the screen-space renderer. */
+export function touchControls(): TouchControls {
   const layout = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  return { move: layout.move, fire: layout.fire, drop: layout.drop };
+}
+
+/** Simulation-space button geometry retained for callers that use canvas coordinates. */
+export function touchButtons(): Pick<TouchControls, 'fire' | 'drop'> {
+  const controls = touchControls();
   const toSimulation = ({ x, y, r }: UiCircle): UiCircle =>
     ({ x: x / RENDER_SCALE, y: y / RENDER_SCALE, r: r / RENDER_SCALE });
   return {
-    fire: toSimulation(layout.fire),
-    drop: toSimulation(layout.drop),
+    fire: toSimulation(controls.fire),
+    drop: toSimulation(controls.drop),
   };
 }
 
@@ -40,17 +44,19 @@ export class Input {
   private cardKeyQueued = -1;
   private mouseFire = false;
   private touchFireQueued = false;
-  private buttons: TouchButtons = touchButtons();
+  private controls: TouchControls = touchControls();
   private firePointers = new Map<number, { startedAt: number; missileFired: boolean }>();
   private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private mouseAim: { x: number; y: number } | null = null;
   /** true once any touch input has been seen (renderer shows touch UI) */
   touchSeen = false;
-  /** main.ts sets this to receive canvas-space taps for UI hit testing */
+  /** main.ts sets this to receive screen-space taps for UI hit testing */
   onTap: ((cx: number, cy: number) => void) | null = null;
   /** main.ts sets this to convert client coords → simulation coords */
   toCanvas: ((x: number, y: number) => { x: number; y: number }) | null = null;
+  /** main.ts uses this to keep mouse clicks outside the game viewport inert. */
+  isGamePoint: ((x: number, y: number) => boolean) | null = null;
   /** any user gesture happened (for audio unlock) */
   onGesture: (() => void) | null = null;
 
@@ -72,23 +78,23 @@ export class Input {
     el.addEventListener('pointerdown', e => {
       this.onGesture?.();
       const canvasPt = this.toCanvas ? this.toCanvas(e.clientX, e.clientY) : null;
-      if (canvasPt && this.onTap) this.onTap(canvasPt.x, canvasPt.y);
       if (e.pointerType === 'mouse') {
+        if (this.isGamePoint && !this.isGamePoint(e.clientX, e.clientY)) return;
+        if (this.onTap) this.onTap(e.clientX, e.clientY);
         this.mouseFire = true;
         if (canvasPt) this.mouseAim = canvasPt;
         return;
       }
+      if (this.onTap) this.onTap(e.clientX, e.clientY);
       this.touchSeen = true;
-      // zone split in canvas space so letterboxing can't misroute edge touches
-      const leftHalf = canvasPt ? canvasPt.x < VIEW_W / 2 : e.clientX < window.innerWidth / 2;
-      if (leftHalf) {
+      const controls = this.controls;
+      if (inCircle(e.clientX, e.clientY, controls.move)) {
         this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
         return;
       }
-      const b = this.buttons;
-      if (canvasPt && inCircle(canvasPt.x, canvasPt.y, b.fire)) {
+      if (inCircle(e.clientX, e.clientY, controls.fire)) {
         this.firePointers.set(e.pointerId, { startedAt: performance.now(), missileFired: false });
-      } else if (canvasPt && inCircle(canvasPt.x, canvasPt.y, b.drop)) {
+      } else if (inCircle(e.clientX, e.clientY, controls.drop)) {
         this.dropQueued = true;
       } else {
         this.aimStick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
@@ -122,6 +128,10 @@ export class Input {
     };
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', cancel);
+  }
+
+  setTouchControls(controls: TouchControls): void {
+    this.controls = controls;
   }
 
   poll(): Intent {
