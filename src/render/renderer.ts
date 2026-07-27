@@ -7,9 +7,11 @@ import type { Sheet } from './sprites';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
-import type { LoadedAssets } from './assets';
+import type { LoadedAssets, LoadedFrameAsset } from './assets';
 import { helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
 import { sceneryForTerrain, type SceneryProp } from './scenery';
+import { effectBudget } from './effects';
+import type { QualityTier } from './quality';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   return { x: 40 + i * 140, y: 80, w: 120, h: 110 };
@@ -34,6 +36,19 @@ const HELICOPTER_POSES: HelicopterPose[] = [
   'descend',
 ];
 
+const RENDER_MAX_HP = {
+  gunship: 24,
+  mchopper: 16,
+  tank: 20,
+  gunboat: 24,
+  scout: 8,
+  aagun: 1,
+  patrol: 1,
+  hunter: 1,
+  missile: 1,
+  mine: 1,
+} as const;
+
 export class Renderer {
   constructor(
     private ctx: CanvasRenderingContext2D,
@@ -45,6 +60,7 @@ export class Renderer {
 
   draw(world: World, phase: Phase, cards: UpgradeCard[], t: number, touchUI: boolean): void {
     const { ctx } = this;
+    const tier = this.currentTier();
     const shx = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const shy = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const cam = world.camX + shx;
@@ -53,73 +69,36 @@ export class Renderer {
     this.drawTerrain(world, cam, oy, t);
     this.drawScenery(world, cam, oy);
     this.drawWater(world, cam, oy, t);
-
-    // --- entities (world space) ---
-    const dr = (frame: string, x: number, y: number, flip = false, rot = 0) => {
-      const f = this.sheet.frames[frame];
-      ctx.save();
-      ctx.translate(Math.round(x - cam), Math.round(y + oy));
-      if (flip) ctx.scale(-1, 1);
-      if (rot) ctx.rotate(rot);
-      ctx.drawImage(this.sheet.canvas, f.x, f.y, f.w, f.h, -f.w / 2, -f.h / 2, f.w, f.h);
-      ctx.restore();
-    };
+    this.drawShadows(world, cam, oy);
 
     for (const s of world.subs) {
+      const bob = s.kind === 'mine' ? Math.sin(t * 2 + s.id) * 1.5 : 0;
+      this.drawUnit(s.kind, s.x, s.y + bob, cam, oy, s.dir < 0);
       if (s.kind === 'mine') {
-        const bob = Math.sin(t * 2 + s.id) * 1.5;
-        dr('mine', s.x, s.y + bob);
         if (Math.floor(t * 3) % 2 === 0) {
-          ctx.fillStyle = '#ff8877';
-          ctx.fillRect(Math.round(s.x - cam) - 1, Math.round(s.y + bob + oy) - 1, 2, 2);
+          ctx.fillStyle = '#ffb38e';
+          ctx.fillRect(Math.round(s.x - cam) + 4, Math.round(s.y + bob + oy) - 2, 2, 2);
         }
-      } else {
-        dr(s.kind, s.x, s.y, s.dir < 0);
-        if (s.hitFlash > 0) {
-          const f = this.sheet.frames[s.kind];
-          ctx.globalAlpha = 0.7;
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(Math.round(s.x - cam - f.w / 2), Math.round(s.y + oy - f.h / 2), f.w, f.h);
-          ctx.globalAlpha = 1;
-        }
+      }
+      if (s.hitFlash > 0) {
+        const pulse = 0.25 + s.hitFlash * 2.8;
+        ctx.save();
+        ctx.globalAlpha = Math.min(0.65, pulse);
+        ctx.fillStyle = '#fff2c6';
+        ctx.beginPath();
+        ctx.ellipse(Math.round(s.x - cam), Math.round(s.y + oy), 12, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
       if (world.sonarTimer > 0 && s.kind !== 'gunboat' && !AIR.has(s.kind) && !GROUND.has(s.kind)) {
         ctx.strokeStyle = 'rgba(120,255,160,0.8)';
         ctx.strokeRect(Math.round(s.x - cam) - 14, Math.round(s.y + oy) - 8, 28, 16);
       }
     }
-    for (const c of world.charges) dr('charge', c.x, c.y);
-    for (const p of world.shots) {
-      if (p.ptype === 'bullet') {
-        const nx = p.vx / 300, ny = p.vy / 300;
-        ctx.fillStyle = 'rgba(255,236,150,0.35)';
-        ctx.fillRect(Math.round(p.x - cam - nx * 6), Math.round(p.y + oy - ny * 6), 2, 2);
-        ctx.fillStyle = '#ffe9a0';
-        ctx.fillRect(Math.round(p.x - cam - nx * 3), Math.round(p.y + oy - ny * 3), 2, 2);
-        ctx.fillStyle = '#fff8d8';
-        ctx.fillRect(Math.round(p.x - cam), Math.round(p.y + oy), 2, 2);
-      } else if (p.ptype === 'shot') {
-        ctx.fillStyle = '#ff9a66';
-        ctx.fillRect(Math.round(p.x - cam) - 1, Math.round(p.y + oy) - 1, 3, 2);
-      } else {
-        const rot = Math.atan2(p.vy, p.vx);
-        dr(p.ptype === 'sam' ? 'sam' : p.ptype === 'pmissile' ? 'pmissile' : 'torpedo',
-          p.x, p.y, false, p.ptype === 'sam' ? rot + Math.PI / 2 : rot);
-      }
-    }
-    // blast shockwave rings
-    for (const r of world.rings) {
-      const a = 1 - r.age / 0.3;
-      ctx.strokeStyle = `rgba(255,240,200,${(a * 0.8).toFixed(2)})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), 6 + r.age * 90, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.lineWidth = 1;
+    this.drawProjectiles(world, cam, oy);
+
     // painted player body with procedural rotor, turret, and altitude shadow
     const pl = world.player;
-    this.drawAircraftShadow(world, pl.x, pl.y, cam, oy);
     if (pl.iframes <= 0 || Math.floor(t * 12) % 2 === 0) {
       const pose = helicopterPose(pl.vx, pl.vy, pl.facing);
       const frameX = HELICOPTER_POSES.indexOf(pose) * 192;
@@ -138,16 +117,15 @@ export class Renderer {
       if (pl.muzzleT > 0) {
         ctx.fillStyle = '#fff6c0';
         ctx.fillRect(6, -2, 4, 4);
+        ctx.fillStyle = 'rgba(255,180,96,0.45)';
+        ctx.beginPath();
+        ctx.arc(8, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.restore();
     }
-    // particles
-    for (const pt of world.particles) {
-      ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
-      ctx.fillStyle = pt.color;
-      ctx.fillRect(Math.round(pt.x - cam), Math.round(pt.y + oy), pt.size, pt.size);
-    }
-    ctx.globalAlpha = 1;
+    this.drawParticles(world, cam, oy, tier);
+    this.drawGrading(world, tier);
 
     this.hud(world);
     if (touchUI && phase === 'playing') this.touchOverlay();
@@ -300,6 +278,244 @@ export class Renderer {
       ctx.fillStyle = '#7db8e8';
       ctx.fillRect(x, WATERLINE + oy, 4, 1 + h2);
     }
+  }
+
+  private currentTier(): QualityTier {
+    const dev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV;
+    if (dev && typeof window !== 'undefined') {
+      const override = (window as Window & { __renderTierOverride?: QualityTier }).__renderTierOverride;
+      if (override) return override;
+    }
+    return 'full';
+  }
+
+  private unitAsset(kind: string): LoadedFrameAsset {
+    const enemy = this.assets.enemy[kind];
+    if (enemy) return enemy;
+    const vehicle = this.assets.vehicle[kind];
+    if (vehicle) return vehicle;
+    throw new Error(`Missing unit asset: ${kind}`);
+  }
+
+  private weaponAsset(kind: string): LoadedFrameAsset {
+    const asset = this.assets.weapon[kind];
+    if (!asset) throw new Error(`Missing weapon asset: ${kind}`);
+    return asset;
+  }
+
+  private drawAtlas(
+    asset: LoadedFrameAsset,
+    x: number,
+    y: number,
+    cam: number,
+    oy: number,
+    opts: { flip?: boolean; rot?: number; alpha?: number; scale?: number } = {},
+  ): void {
+    const { ctx } = this;
+    const { frame, image } = asset;
+    const scale = opts.scale ?? 0.5;
+    const w = frame.w * scale;
+    const h = frame.h * scale;
+    ctx.save();
+    ctx.translate(Math.round(x - cam), Math.round(y + oy));
+    if (opts.flip) ctx.scale(-1, 1);
+    if (opts.rot) ctx.rotate(opts.rot);
+    if (opts.alpha !== undefined) ctx.globalAlpha = opts.alpha;
+    ctx.drawImage(image, frame.x, frame.y, frame.w, frame.h, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  private drawUnit(kind: string, x: number, y: number, cam: number, oy: number, flip = false): void {
+    this.drawAtlas(this.unitAsset(kind), x, y, cam, oy, { flip });
+  }
+
+  private maxHpFor(kind: keyof typeof RENDER_MAX_HP): number {
+    return RENDER_MAX_HP[kind];
+  }
+
+  private drawShadows(world: World, cam: number, oy: number): void {
+    this.drawAircraftShadow(world, world.player.x, world.player.y, cam, oy);
+    for (const s of world.subs) {
+      if (!AIR.has(s.kind)) continue;
+      this.drawAircraftShadow(world, s.x, s.y + 4, cam, oy);
+    }
+    for (const p of world.shots) {
+      if (p.ptype !== 'sam' && p.ptype !== 'pmissile') continue;
+      this.drawProjectileShadow(world, p.x, p.y, cam, oy);
+    }
+  }
+
+  private drawProjectiles(world: World, cam: number, oy: number): void {
+    const { ctx } = this;
+    for (const c of world.charges) this.drawAtlas(this.weaponAsset('charge'), c.x, c.y, cam, oy);
+    for (const p of world.shots) {
+      const rot = Math.atan2(p.vy, p.vx);
+      const nx = Math.cos(rot);
+      const ny = Math.sin(rot);
+      if (p.ptype === 'bullet' || p.ptype === 'shot' || p.ptype === 'flak') {
+        const warm = p.ptype === 'bullet' ? 'rgba(255,242,176,0.45)' : 'rgba(255,162,104,0.38)';
+        ctx.strokeStyle = warm;
+        ctx.lineWidth = p.ptype === 'bullet' ? 1.25 : 1.75;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(p.x - cam - nx * 7), Math.round(p.y + oy - ny * 7));
+        ctx.lineTo(Math.round(p.x - cam + nx * 3), Math.round(p.y + oy + ny * 3));
+        ctx.stroke();
+      }
+      if (p.ptype === 'sam' || p.ptype === 'pmissile') {
+        ctx.strokeStyle = p.ptype === 'sam' ? 'rgba(255,180,108,0.35)' : 'rgba(209,234,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(p.x - cam - nx * 10), Math.round(p.y + oy - ny * 10));
+        ctx.lineTo(Math.round(p.x - cam - nx * 2), Math.round(p.y + oy - ny * 2));
+        ctx.stroke();
+      }
+      this.drawAtlas(this.weaponAsset(p.ptype), p.x, p.y, cam, oy, { rot });
+    }
+    for (const r of world.rings) {
+      const a = 1 - r.age / 0.3;
+      const radius = 6 + r.age * 90;
+      ctx.save();
+      ctx.globalAlpha = a * 0.28;
+      ctx.fillStyle = '#ffc889';
+      ctx.beginPath();
+      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), radius * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = `rgba(255,240,200,${(a * 0.8).toFixed(2)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,174,118,${(a * 0.45).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), Math.max(2, radius * 0.58), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+  }
+
+  private drawParticles(world: World, cam: number, oy: number, tier: QualityTier): void {
+    const { ctx } = this;
+    const budget = effectBudget(tier);
+    let particles = 0;
+    let debris = 0;
+
+    for (let i = world.particles.length - 1; i >= 0; i--) {
+      const pt = world.particles[i];
+      const alpha = Math.max(0, pt.life / pt.maxLife);
+      const isDebris = pt.color !== '#3a3f46';
+      if (isDebris) {
+        if (debris >= budget.debris) continue;
+        debris++;
+      } else {
+        if (particles >= budget.particles) continue;
+        particles++;
+      }
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(Math.round(pt.x - cam), Math.round(pt.y + oy));
+      if (pt.color === '#3a3f46') {
+        ctx.fillStyle = 'rgba(58,63,70,0.86)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 3 + pt.size, 2 + pt.size * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = pt.color;
+        ctx.rotate((pt.id % 12) * 0.2);
+        ctx.fillRect(-pt.size, -pt.size, pt.size * 2, pt.size * 2);
+      }
+      ctx.restore();
+    }
+
+    if (budget.haze) {
+      this.drawRotorWash(world.player.x, world.player.y, world, cam, oy, 'rgba(210,228,236,0.16)');
+      for (const s of world.subs) {
+        if (AIR.has(s.kind)) this.drawRotorWash(s.x, s.y, world, cam, oy, 'rgba(194,206,214,0.12)');
+        if (s.kind === 'tank') this.drawSurfaceWake(s.x - s.dir * 10, s.y + 4, cam, oy, '#cbb288', 0.2);
+        if (s.kind === 'gunboat') this.drawSurfaceWake(s.x - 12, WATERLINE + 2, cam, oy, '#d8eeff', 0.24);
+      }
+    }
+
+    for (const s of world.subs) {
+      const maxHp = this.maxHpFor(s.kind as keyof typeof RENDER_MAX_HP);
+      if (maxHp <= 1 || s.hp >= maxHp * 0.5) continue;
+      const smokeAlpha = 0.18 + (1 - s.hp / maxHp) * 0.2;
+      ctx.save();
+      ctx.globalAlpha = smokeAlpha;
+      ctx.fillStyle = '#4a5057';
+      ctx.beginPath();
+      ctx.ellipse(Math.round(s.x - cam - s.dir * 5), Math.round(s.y + oy - 8), 5, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  private drawGrading(world: World, tier: QualityTier): void {
+    const { ctx } = this;
+    const budget = effectBudget(tier);
+    if (budget.haze) {
+      const haze = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+      haze.addColorStop(0, 'rgba(255,242,208,0.05)');
+      haze.addColorStop(0.55, 'rgba(255,255,255,0)');
+      haze.addColorStop(1, world.terrain.biome === 'inland' ? 'rgba(186,164,112,0.04)' : 'rgba(94,142,182,0.05)');
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    if (budget.reflections && world.terrain.biome !== 'inland') {
+      ctx.fillStyle = 'rgba(240,248,255,0.08)';
+      ctx.fillRect(0, WATERLINE + 4, VIEW_W, 2);
+      ctx.fillStyle = 'rgba(255,244,214,0.05)';
+      ctx.fillRect(0, WATERLINE + 10, VIEW_W, 1);
+    }
+  }
+
+  private drawProjectileShadow(world: World, x: number, y: number, cam: number, oy: number): void {
+    const col = Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)));
+    const surfaceY = world.terrain.water[col] ? WATERLINE : this.surfaceYAt(world, x);
+    const style = shadowStyle(surfaceY - y);
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(Math.round(x - cam), Math.round(surfaceY + oy + 1));
+    ctx.scale(style.scale * 0.45, style.scale * 0.45);
+    ctx.filter = `blur(${Math.max(0.4, style.blur * 0.6)}px)`;
+    ctx.fillStyle = `rgba(5, 12, 18, ${style.alpha * 0.8})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawRotorWash(x: number, y: number, world: World, cam: number, oy: number, color: string): void {
+    const col = Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)));
+    const surfaceY = world.terrain.water[col] ? WATERLINE : this.surfaceYAt(world, x);
+    const alt = surfaceY - y;
+    if (alt < 8 || alt > 40) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = 1 - alt / 48;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(Math.round(x - cam), Math.round(surfaceY + oy + 1), 14, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawSurfaceWake(
+    x: number,
+    y: number,
+    cam: number,
+    oy: number,
+    color: string,
+    alpha: number,
+  ): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(Math.round(x - cam), Math.round(y + oy), 8, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   private landRuns(world: World): [number, number][] {
