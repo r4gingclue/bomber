@@ -2,12 +2,13 @@ import { VIEW_W, VIEW_H, WATERLINE } from '../game/consts';
 import type { World } from '../game/world';
 import type { Phase } from '../game/state';
 import type { UpgradeCard } from '../game/upgrades';
-import { bankFrame } from '../game/aim';
 import { touchButtons } from '../core/input';
 import type { Sheet } from './sprites';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
+import type { LoadedAssets } from './assets';
+import { helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   return { x: 40 + i * 140, y: 80, w: 120, h: 110 };
@@ -24,18 +25,25 @@ const CLOUDS_NEAR: CloudSpec[] = Array.from({ length: 6 }, (_, i) => ({
 const wrapX = (x: number, cam: number, factor: number) =>
   ((x - cam * factor) % 960 + 960) % 960 - 240;
 
-export class Renderer {
-  private lastT = 0;
-  private turnScale = 1;
+const HELICOPTER_POSES: HelicopterPose[] = [
+  'level',
+  'accelerate',
+  'brake',
+  'climb',
+  'descend',
+];
 
-  constructor(private ctx: CanvasRenderingContext2D, private sheet: Sheet) {
+export class Renderer {
+  constructor(
+    private ctx: CanvasRenderingContext2D,
+    private sheet: Sheet,
+    private assets: LoadedAssets,
+  ) {
     ctx.imageSmoothingEnabled = false;
   }
 
   draw(world: World, phase: Phase, cards: UpgradeCard[], t: number, touchUI: boolean): void {
     const { ctx } = this;
-    const dt = Math.min(0.1, Math.max(0, t - this.lastT));
-    this.lastT = t;
     const shx = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const shy = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const cam = world.camX + shx;
@@ -193,21 +201,17 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.lineWidth = 1;
-    // player with turn motion
+    // painted player body with procedural rotor, turret, and altitude shadow
     const pl = world.player;
-    const target = pl.facing;
-    this.turnScale += (target - this.turnScale) * Math.min(1, dt * 16);
-    let ts = this.turnScale;
-    if (Math.abs(ts) < 0.08) ts = ts < 0 ? -0.08 : 0.08;
-    const pitch = Math.max(-0.15, Math.min(0.15, pl.vy * 0.002));
+    this.drawAircraftShadow(world, pl.x, pl.y, cam, oy);
     if (pl.iframes <= 0 || Math.floor(t * 12) % 2 === 0) {
-      const frame = `heli${bankFrame(pl.vx)}${Math.floor(t * 20) % 2}`;
-      const f = this.sheet.frames[frame];
+      const pose = helicopterPose(pl.vx, pl.vy, pl.facing);
+      const frameX = HELICOPTER_POSES.indexOf(pose) * 192;
+      this.drawPlayerRotor(pl.x, pl.y, cam, oy, t);
       ctx.save();
       ctx.translate(Math.round(pl.x - cam), Math.round(pl.y + oy));
-      ctx.rotate(pitch * (ts < 0 ? -1 : 1));
-      ctx.scale(ts, 1);
-      ctx.drawImage(this.sheet.canvas, f.x, f.y, f.w, f.h, -f.w / 2, -f.h / 2, f.w, f.h);
+      ctx.scale(pl.facing, 1);
+      ctx.drawImage(this.assets.player.heli, frameX, 0, 192, 96, -48, -24, 96, 48);
       ctx.restore();
       // chin turret (aims independently of body flip)
       const tf = this.sheet.frames.turret;
@@ -324,6 +328,40 @@ export class Renderer {
 
   private surfaceYAt(world: World, x: number): number {
     return world.terrain.surface[Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)))];
+  }
+
+  private drawAircraftShadow(world: World, x: number, y: number, cam: number, oy: number): void {
+    const col = Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)));
+    const surfaceY = world.terrain.water[col] ? WATERLINE : this.surfaceYAt(world, x);
+    const style = shadowStyle(surfaceY - y);
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(Math.round(x - cam), Math.round(surfaceY + oy + 1));
+    ctx.scale(style.scale, style.scale);
+    ctx.filter = `blur(${style.blur}px)`;
+    ctx.fillStyle = `rgba(5, 12, 18, ${style.alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawPlayerRotor(x: number, y: number, cam: number, oy: number, t: number): void {
+    const { ctx } = this;
+    const sweep = 24 + Math.sin(t * 38) * 3;
+    ctx.save();
+    ctx.translate(Math.round(x - cam), Math.round(y + oy - 16));
+    ctx.strokeStyle = 'rgba(230, 238, 242, 0.58)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, sweep, 1.25, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120, 136, 145, 0.45)';
+    ctx.beginPath();
+    ctx.moveTo(-sweep - 4, 0);
+    ctx.lineTo(sweep + 4, 0);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private actIntro(world: World): void {

@@ -13,6 +13,13 @@ export interface LoadedAssets {
   warnings: string[];
 }
 
+export const GRAPHICS_MANIFEST: AssetManifest = {
+  player: { heli: '/assets/graphics/player-heli.png' },
+  enemy: {},
+  weapon: {},
+  scenery: {},
+};
+
 type ImageLoader = (url: string) => Promise<CanvasImageSource>;
 
 export async function browserImageLoader(url: string): Promise<HTMLImageElement> {
