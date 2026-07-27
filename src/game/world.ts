@@ -592,6 +592,15 @@ export class World {
         p.age = p.life;
         return;
       }
+      const rocket = this.shots.find(s =>
+        s !== p && s.ptype === 'sam' && s.age < s.life &&
+        circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: 3 }));
+      if (rocket) {
+        p.age = p.life;
+        rocket.age = rocket.life;
+        this.boomParticles(rocket.x, rocket.y, 4);
+        return;
+      }
       for (const s of this.subs) {
         if (!this.isBulletTarget(s)) continue;
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
