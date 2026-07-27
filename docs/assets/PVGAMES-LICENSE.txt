@@ -1,0 +1,20 @@
+PVGames permitted-use record
+=============================
+
+This project retains the relevant permitted-use terms supplied with the locally
+owned PVGames packs used as environmental reference material:
+
+- The resources may be used in commercial and non-commercial projects.
+- The resources may be edited or otherwise transformed for use in a project.
+- Raw resources and edited resource files may not be redistributed as standalone
+  assets or resource packs.
+- Attribution and the originating source pack must be retained with each
+  transformed output.
+
+Task 5 compliance
+-----------------
+
+The Sea Bomber outputs recorded in painted-scenery-sources.json are original,
+repainted 256x256 material swatches. They retain no complete source building or
+arch and are used only by scenery and terrain painters. Source archives and raw
+source objects are not included in this repository or production build.
