@@ -67,12 +67,13 @@ export class Renderer {
     cards: UpgradeCard[],
     t: number,
     touchUI: boolean,
+    qualityTier: QualityTier,
     layout: UiLayout,
     reducedFlash: boolean,
     debugDamageFlash = false,
   ): void {
     const { ctx } = this;
-    const tier = this.currentTier();
+    const tier = this.currentTier(qualityTier);
     const shx = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const shy = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const cam = world.camX + shx;
@@ -291,13 +292,13 @@ export class Renderer {
     }
   }
 
-  private currentTier(): QualityTier {
+  private currentTier(qualityTier: QualityTier): QualityTier {
     const dev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV;
     if (dev && typeof window !== 'undefined') {
       const override = (window as Window & { __renderTierOverride?: QualityTier }).__renderTierOverride;
       if (override) return override;
     }
-    return 'full';
+    return qualityTier;
   }
 
   private unitAsset(kind: string): LoadedFrameAsset {

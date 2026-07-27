@@ -21,3 +21,22 @@ assets or code ship in this game.
 
     npm test        # vitest unit tests (pure game logic)
     npm run build   # typecheck + production build to dist/
+
+## Rendering
+
+Sea Bomber renders the complete battlefield to a 960×540 canvas and fits that
+16:9 image inside the available viewport without cropping. Wider or taller
+screens use letterboxing, while the screen-space HUD and touch controls are laid
+out independently at the browser's device-pixel ratio and respect safe-area
+insets.
+
+Graphics quality starts at `full` and is selected from render duration only.
+Sustained expensive draws step through `reduced` to `minimum`; sustained fast
+draws recover one tier at a time. Lower tiers trim particles, debris,
+reflections, and atmosphere without removing enemies, projectiles, aiming cues,
+hit feedback, terrain, or the HUD. The simulation update is not included in the
+quality sample and is not changed by the selected tier.
+
+See [the painted-graphics playtest](docs/testing/painted-graphics-playtest.md)
+for the release matrix and [the asset workflow](docs/assets/README.md) before
+adding or replacing artwork.

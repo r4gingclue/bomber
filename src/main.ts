@@ -15,6 +15,7 @@ import { renderFatalBootError } from './render/fatal';
 import { uiLayout, type UiLayout } from './render/ui-layout';
 import { reducedMotionFlag } from './render/motion';
 import { screenCanvasSize } from './render/screen-canvas';
+import { QualityMonitor } from './render/quality';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -72,6 +73,7 @@ async function boot(): Promise<void> {
   const state = new StateMachine();
   const renderer = new Renderer(ctx, uiCtx, makeSheet(), assets);
   const motion = reducedMotionFlag(window.matchMedia('(prefers-reduced-motion: reduce)'));
+  const quality = new QualityMonitor();
 
   let world = new World(mulberry32(Date.now() >>> 0));
   let cards: UpgradeCard[] = [];
@@ -180,16 +182,21 @@ async function boot(): Promise<void> {
 
   const loop = new Loop(
     dt => update(dt),
-    () => renderer.draw(
-      world,
-      state.phase,
-      cards,
-      elapsed,
-      activeInput.touchSeen || debugTouchUi,
-      screenLayout,
-      motion.value || debugReducedMotion,
-      debugDamageFlash,
-    ),
+    () => {
+      const renderStart = performance.now();
+      renderer.draw(
+        world,
+        state.phase,
+        cards,
+        elapsed,
+        activeInput.touchSeen || debugTouchUi,
+        quality.tier,
+        screenLayout,
+        motion.value || debugReducedMotion,
+        debugDamageFlash,
+      );
+      quality.sample(performance.now() - renderStart);
+    },
   );
   loop.start();
 
