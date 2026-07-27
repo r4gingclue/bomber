@@ -7,6 +7,7 @@ import { touchButtons } from '../core/input';
 import type { Sheet } from './sprites';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS } from '../game/terrain';
+import { AIR, GROUND } from '../game/waves';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   return { x: 40 + i * 140, y: 80, w: 120, h: 110 };
@@ -158,7 +159,7 @@ export class Renderer {
           ctx.globalAlpha = 1;
         }
       }
-      if (world.sonarTimer > 0 && s.kind !== 'gunboat') {
+      if (world.sonarTimer > 0 && s.kind !== 'gunboat' && !AIR.has(s.kind) && !GROUND.has(s.kind)) {
         ctx.strokeStyle = 'rgba(120,255,160,0.8)';
         ctx.strokeRect(Math.round(s.x - cam) - 14, Math.round(s.y + oy) - 8, 28, 16);
       }
@@ -173,10 +174,13 @@ export class Renderer {
         ctx.fillRect(Math.round(p.x - cam - nx * 3), Math.round(p.y + oy - ny * 3), 2, 2);
         ctx.fillStyle = '#fff8d8';
         ctx.fillRect(Math.round(p.x - cam), Math.round(p.y + oy), 2, 2);
+      } else if (p.ptype === 'shot') {
+        ctx.fillStyle = '#ff9a66';
+        ctx.fillRect(Math.round(p.x - cam) - 1, Math.round(p.y + oy) - 1, 3, 2);
       } else {
         const rot = Math.atan2(p.vy, p.vx);
-        dr(p.ptype === 'sam' ? 'sam' : 'torpedo', p.x, p.y, false,
-          p.ptype === 'sam' ? rot + Math.PI / 2 : rot);
+        dr(p.ptype === 'sam' ? 'sam' : p.ptype === 'pmissile' ? 'pmissile' : 'torpedo',
+          p.x, p.y, false, p.ptype === 'sam' ? rot + Math.PI / 2 : rot);
       }
     }
     // blast shockwave rings
@@ -252,6 +256,12 @@ export class Renderer {
     for (let i = 0; i < world.stats.maxCharges; i++) {
       ctx.fillStyle = i < world.stats.maxCharges - world.charges.length ? '#ffd866' : '#444';
       ctx.fillRect(8 + i * 7, 17, 5, 6);
+    }
+    if (world.stats.missileCap > 0) {
+      for (let i = 0; i < world.stats.missileCap; i++) {
+        ctx.fillStyle = i < world.missileStock ? '#8ad0ff' : '#444';
+        ctx.fillRect(60 + i * 5, 17, 3, 6);
+      }
     }
     ctx.fillStyle = '#e8f2ff';
     ctx.font = '8px monospace';
