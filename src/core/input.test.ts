@@ -122,4 +122,14 @@ describe('missile input', () => {
     canvas.dispatchEvent(event('pointerup', { pointerType: 'mouse', pointerId: 9, clientX: 10, clientY: 10 }));
     expect(input.poll().fire).toBe(false);
   });
+
+  it('stops mouse fire when its pointer is cancelled', () => {
+    const { input, canvas } = setupInput();
+    canvas.dispatchEvent(event('pointerdown', { pointerType: 'mouse', pointerId: 10, clientX: 10, clientY: 10 }));
+    expect(input.poll().fire).toBe(true);
+
+    canvas.dispatchEvent(event('pointercancel', { pointerType: 'mouse', pointerId: 10, clientX: 10, clientY: 10 }));
+
+    expect(input.poll().fire).toBe(false);
+  });
 });

@@ -106,6 +106,7 @@ export class Input {
       this.releaseFirePointer(e.pointerId, false);
     };
     const cancel = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') this.mouseFire = false;
       if (this.stick.active && e.pointerId === this.stick.id) this.stick.active = false;
       if (this.aimStick.active && e.pointerId === this.aimStick.id) this.aimStick.active = false;
       this.releaseFirePointer(e.pointerId, true);
