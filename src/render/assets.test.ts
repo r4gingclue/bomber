@@ -63,3 +63,16 @@ it('fails fast when a runtime render key is missing from the manifest', () => {
 it('covers every Task 8 runtime key in the production manifest', () => {
   expect(() => validateManifestCoverage(GRAPHICS_MANIFEST)).not.toThrow();
 });
+
+it('rejects an atlas frame that exceeds the decoded image bounds', async () => {
+  const invalid: AssetManifest = {
+    ...manifest,
+    weapon: {
+      ...manifest.weapon,
+      charge: { ...manifest.weapon.charge, x: 10 },
+    },
+  };
+  const decoded = { width: 10, height: 10 } as CanvasImageSource;
+  await expect(loadAssets(invalid, async () => decoded))
+    .rejects.toThrow('Critical asset failed: weapon.charge');
+});

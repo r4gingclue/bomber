@@ -10,7 +10,7 @@ import { AIR, GROUND } from '../game/waves';
 import type { LoadedAssets, LoadedFrameAsset } from './assets';
 import { helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
 import { sceneryForTerrain, type SceneryProp } from './scenery';
-import { effectBudget } from './effects';
+import { budgetedParticlesNewestFirst, effectBudget } from './effects';
 import type { QualityTier } from './quality';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
@@ -397,20 +397,9 @@ export class Renderer {
   private drawParticles(world: World, cam: number, oy: number, tier: QualityTier): void {
     const { ctx } = this;
     const budget = effectBudget(tier);
-    let particles = 0;
-    let debris = 0;
 
-    for (let i = world.particles.length - 1; i >= 0; i--) {
-      const pt = world.particles[i];
+    for (const pt of budgetedParticlesNewestFirst(world.particles, tier)) {
       const alpha = Math.max(0, pt.life / pt.maxLife);
-      const isDebris = pt.color !== '#3a3f46';
-      if (isDebris) {
-        if (debris >= budget.debris) continue;
-        debris++;
-      } else {
-        if (particles >= budget.particles) continue;
-        particles++;
-      }
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate(Math.round(pt.x - cam), Math.round(pt.y + oy));

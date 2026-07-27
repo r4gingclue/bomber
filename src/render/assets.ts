@@ -87,6 +87,45 @@ export async function browserImageLoader(url: string): Promise<HTMLImageElement>
   return img;
 }
 
+function decodedImageSize(
+  image: CanvasImageSource,
+): { width: number; height: number } | undefined {
+  const source = image as {
+    naturalWidth?: unknown;
+    naturalHeight?: unknown;
+    width?: unknown;
+    height?: unknown;
+  };
+  const width = typeof source.naturalWidth === 'number' && source.naturalWidth > 0
+    ? source.naturalWidth
+    : source.width;
+  const height = typeof source.naturalHeight === 'number' && source.naturalHeight > 0
+    ? source.naturalHeight
+    : source.height;
+  if (typeof width !== 'number' || typeof height !== 'number' || width <= 0 || height <= 0) {
+    return undefined;
+  }
+  return { width, height };
+}
+
+function validateFrameBounds(
+  frame: AtlasFrame,
+  image: CanvasImageSource,
+): void {
+  const size = decodedImageSize(image);
+  if (!size) return;
+  if (
+    frame.x < 0
+    || frame.y < 0
+    || frame.w <= 0
+    || frame.h <= 0
+    || frame.x + frame.w > size.width
+    || frame.y + frame.h > size.height
+  ) {
+    throw new Error('Atlas frame exceeds decoded image bounds');
+  }
+}
+
 export async function loadAssets(
   m: AssetManifest,
   loader: ImageLoader = browserImageLoader,
@@ -120,8 +159,10 @@ export async function loadAssets(
   for (const group of ['enemy', 'vehicle', 'weapon'] as const) {
     for (const [name, spec] of Object.entries(m[group])) {
       try {
+        const image = await loadShared(spec.url);
+        validateFrameBounds(spec, image);
         out[group][name] = {
-          image: await loadShared(spec.url),
+          image,
           frame: { x: spec.x, y: spec.y, w: spec.w, h: spec.h },
         };
       } catch {
