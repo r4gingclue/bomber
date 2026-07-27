@@ -69,6 +69,7 @@ export class Renderer {
     touchUI: boolean,
     layout: UiLayout,
     reducedFlash: boolean,
+    debugDamageFlash = false,
   ): void {
     const { ctx } = this;
     const tier = this.currentTier();
@@ -138,7 +139,7 @@ export class Renderer {
     this.drawParticles(world, cam, oy, tier);
     this.drawGrading(world, tier);
 
-    this.damageFlash(world, reducedFlash);
+    this.damageFlash(world, reducedFlash, debugDamageFlash);
     this.drawScreenUi(world, phase, cards, touchUI, layout);
     if (phase === 'menu') this.menu();
     if (phase === 'actIntro') this.actIntro(world);
@@ -721,8 +722,8 @@ export class Renderer {
     }
   }
 
-  private damageFlash(world: World, reducedFlash: boolean): void {
-    const pulse = Math.max(0, Math.min(1, (world.player.iframes - 0.55) / 0.25));
+  private damageFlash(world: World, reducedFlash: boolean, debugDamageFlash: boolean): void {
+    const pulse = debugDamageFlash ? 1 : Math.max(0, Math.min(1, (world.player.iframes - 0.55) / 0.25));
     if (pulse <= 0) return;
     const { ctx } = this;
     ctx.save();

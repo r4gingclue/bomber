@@ -14,6 +14,7 @@ import { GRAPHICS_MANIFEST, loadAssets } from './render/assets';
 import { renderFatalBootError } from './render/fatal';
 import { uiLayout, type UiLayout } from './render/ui-layout';
 import { reducedMotionFlag } from './render/motion';
+import { screenCanvasSize } from './render/screen-canvas';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -32,6 +33,13 @@ function safeInsets(): Insets {
 let viewport = fitViewport(innerWidth, innerHeight, safeInsets());
 let screenLayout: UiLayout = uiLayout(innerWidth, innerHeight, safeInsets(), true);
 let input: Input | null = null;
+const debugParams = (import.meta as { env?: { DEV?: boolean } }).env?.DEV
+  ? new URLSearchParams(window.location.search)
+  : null;
+const debugTouchUi = debugParams?.has('touch-ui') ?? false;
+const debugReducedMotion = debugParams?.has('reduced-motion') ?? false;
+const debugDamageFlash = debugParams?.has('damage-flash') ?? false;
+const debugPixelRatio = Number(debugParams?.get('dpr')) || 0;
 function resize(): void {
   viewport = fitViewport(innerWidth, innerHeight, safeInsets());
   Object.assign(canvas.style, {
@@ -41,9 +49,14 @@ function resize(): void {
     width: `${viewport.width}px`,
     height: `${viewport.height}px`,
   });
-  const pixelRatio = window.devicePixelRatio || 1;
-  uiCanvas.width = Math.round(innerWidth * pixelRatio);
-  uiCanvas.height = Math.round(innerHeight * pixelRatio);
+  const pixelRatio = debugPixelRatio || window.devicePixelRatio || 1;
+  const uiSize = screenCanvasSize(innerWidth, innerHeight, pixelRatio);
+  uiCanvas.width = uiSize.backingWidth;
+  uiCanvas.height = uiSize.backingHeight;
+  Object.assign(uiCanvas.style, {
+    width: `${uiSize.cssWidth}px`,
+    height: `${uiSize.cssHeight}px`,
+  });
   uiCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   screenLayout = uiLayout(innerWidth, innerHeight, safeInsets(), true);
   input?.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
@@ -167,7 +180,16 @@ async function boot(): Promise<void> {
 
   const loop = new Loop(
     dt => update(dt),
-    () => renderer.draw(world, state.phase, cards, elapsed, activeInput.touchSeen, screenLayout, motion.value),
+    () => renderer.draw(
+      world,
+      state.phase,
+      cards,
+      elapsed,
+      activeInput.touchSeen || debugTouchUi,
+      screenLayout,
+      motion.value || debugReducedMotion,
+      debugDamageFlash,
+    ),
   );
   loop.start();
 
