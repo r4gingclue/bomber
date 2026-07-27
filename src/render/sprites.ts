@@ -110,6 +110,39 @@ export function makeSheet(): Sheet {
   px(153, 0, 2, 1, '#7a8492');
   px(153, 5, 2, 1, '#3a424c');
 
+  // --- enemy choppers at y=64: scout 14x8 (0,64), gunship 24x12 (16,64), mchopper 22x12 (44,64)
+  // scout: tiny drone, red accent
+  px(2, 68, 10, 3, '#7a3f3f');
+  px(4, 67, 4, 1, '#9a5a5a');
+  px(1, 66, 12, 1, '#cccccc');      // rotor
+  px(11, 69, 2, 1, '#ff5544');      // tail light
+  // gunship: dark green attack heli, nose right
+  px(18, 69, 14, 5, '#3f5138');
+  px(28, 70, 4, 3, '#2e3c29');      // nose
+  px(26, 69, 4, 2, '#88aacc');      // canopy
+  px(16, 70, 4, 2, '#2e3c29');      // tail
+  px(17, 66, 12, 1, '#cccccc');     // rotor
+  px(20, 74, 8, 1, '#222222');      // skid
+  // mchopper: grey with missile pods, nose right
+  px(46, 69, 12, 5, '#5a6068');
+  px(56, 70, 4, 3, '#464c54');      // nose
+  px(54, 69, 3, 2, '#88aacc');      // canopy
+  px(44, 70, 4, 2, '#464c54');      // tail
+  px(45, 66, 11, 1, '#cccccc');     // rotor
+  px(48, 74, 3, 2, '#31363f');      // pod L
+  px(53, 74, 3, 2, '#31363f');      // pod R
+  // --- ground at y=80: aagun 12x8 (0,80), tank 18x10 (16,80)
+  px(2, 84, 8, 3, '#6a6f78');       // aagun base
+  px(5, 81, 2, 4, '#464c54');       // mount
+  px(6, 80, 5, 1, '#31363f');       // barrel (up-right)
+  px(18, 84, 14, 4, '#55603f');     // tank hull
+  px(21, 81, 7, 3, '#48522f');      // turret
+  px(27, 82, 6, 1, '#31363f');      // barrel
+  px(18, 88, 14, 1, '#222222');     // tracks
+  // --- player missile 6x2 at (68,64)
+  px(68, 64, 5, 2, '#e8eef4');
+  px(73, 64, 1, 2, '#ffcc66');
+
   return {
     canvas,
     frames: {
@@ -128,6 +161,12 @@ export function makeSheet(): Sheet {
       torpedo:{ x: 132, y: 0, w: 10, h: 4 },
       sam:    { x: 144, y: 0, w: 4,  h: 12 },
       charge: { x: 152, y: 0, w: 4,  h: 6 },
+      scout:    { x: 0,  y: 64, w: 14, h: 8 },
+      gunship:  { x: 16, y: 64, w: 24, h: 12 },
+      mchopper: { x: 44, y: 64, w: 22, h: 12 },
+      aagun:    { x: 0,  y: 80, w: 12, h: 8 },
+      tank:     { x: 16, y: 80, w: 18, h: 10 },
+      pmissile: { x: 68, y: 64, w: 6,  h: 2 },
     },
   };
 }
