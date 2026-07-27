@@ -382,4 +382,88 @@ describe('World', () => {
 
     expect(w.shots.some(p => p.ptype === 'pmissile')).toBe(true);
   });
+
+  it('spawns player missiles with the specified speed, damage, and lifetime', () => {
+    const w = new World(mulberry32(1));
+    w.stats.missileCap = 1;
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push({ id: 703, kind: 'scout', hp: 8, x: w.player.x + 120, y: w.player.y, vx: 0, vy: 0, dir: -1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: true });
+
+    const missile = w.shots.find(p => p.ptype === 'pmissile')!;
+    expect(Math.hypot(missile.vx, missile.vy)).toBeCloseTo(200, 8);
+    expect(missile.damage).toBe(24);
+    expect(missile.life).toBe(4);
+  });
+
+  it('targets the nearest air enemy while ignoring a nearer ground enemy', () => {
+    const w = new World(mulberry32(1));
+    w.stats.missileCap = 1;
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push(
+      { id: 704, kind: 'aagun', hp: 1, x: w.player.x - 20, y: w.player.y, vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 },
+      { id: 705, kind: 'scout', hp: 8, x: w.player.x + 120, y: w.player.y, vx: 0, vy: 0, dir: -1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 },
+    );
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: true });
+
+    expect(w.shots.find(p => p.ptype === 'pmissile')!.vx).toBeGreaterThan(0);
+  });
+
+  it('preserves missile stock when no air target exists', () => {
+    const w = new World(mulberry32(1));
+    w.stats.missileCap = 1;
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push({ id: 706, kind: 'aagun', hp: 1, x: w.player.x + 40, y: w.player.y, vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: true });
+
+    expect(w.missileStock).toBe(1);
+    expect(w.shots.some(p => p.ptype === 'pmissile')).toBe(false);
+  });
+
+  it('expires player missiles on land terrain', () => {
+    const w = new World(mulberry32(1));
+    w.terrain = generateTerrain('inland', mulberry32(2));
+    const x = w.player.x;
+    w.shots.push({ id: 707, ptype: 'pmissile', x, y: w.terrain.surface[Math.floor(x / 8)], vx: 200, vy: 0, age: 0, life: 4, damage: 24 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.shots.some(p => p.id === 707)).toBe(false);
+    expect(w.particles.length).toBeGreaterThan(0);
+  });
+
+  it('caps player missile homing turns at 3 radians per second', () => {
+    const w = new World(mulberry32(1));
+    w.subs.push({ id: 708, kind: 'scout', hp: 8, x: w.player.x - 200, y: w.player.y, vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+    const missile = { id: 709, ptype: 'pmissile' as const, x: w.player.x, y: w.player.y, vx: 200, vy: 0, age: 0, life: 4, damage: 24 };
+    w.shots.push(missile);
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(Math.atan2(missile.vy, missile.vx)).toBeCloseTo(3 / 60, 8);
+  });
+
+  it('applies a scout missile kill blast, score, and reward exactly once', () => {
+    const w = new World(mulberry32(1));
+    w.stats.missileCap = 1;
+    w.startWave();
+    w.subs.length = 0;
+    w.subs.push({ id: 710, kind: 'scout', hp: 8, x: w.player.x + 120, y: w.player.y, vx: 0, vy: 0, dir: -1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+
+    for (let i = 0; i < 180 && w.subs.length > 0; i++) {
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: i === 0 });
+    }
+
+    expect(w.subs).toHaveLength(0);
+    expect(w.player.hp).toBe(80);
+    expect(w.score).toBe(BASE_SCORE.scout);
+    expect(w.kills).toBe(1);
+    expect(w.events.filter(e => e === 'boom')).toHaveLength(1);
+  });
 });

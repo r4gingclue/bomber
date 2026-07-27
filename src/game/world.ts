@@ -497,6 +497,18 @@ export class World {
     return true;
   }
 
+  private destroyAndReward(s: Sub): void {
+    if (!this.destroySub(s)) return;
+    this.score += BASE_SCORE[s.kind];
+    this.kills++;
+    if (s.kind !== 'scout') {
+      this.boomParticles(s.x, s.y, 10);
+      this.rings.push({ x: s.x, y: s.y, age: 0 });
+      this.shake = Math.min(6, this.shake + 2);
+      this.events.push('boom');
+    }
+  }
+
   private isBulletTarget(s: Sub): boolean {
     return AIR.has(s.kind) || GROUND.has(s.kind) ||
       s.kind === 'gunboat' || (s.kind === 'mine' && s.y < WATERLINE + 16);
@@ -533,16 +545,7 @@ export class World {
           s.hp -= p.damage;
           s.hitFlash = 0.1;
           p.age = p.life;
-          if (s.hp <= 0 && this.destroySub(s)) {
-            this.score += BASE_SCORE[s.kind];
-            this.kills++;
-            if (s.kind !== 'scout') {
-              this.boomParticles(s.x, s.y, 10);
-              this.rings.push({ x: s.x, y: s.y, age: 0 });
-              this.shake = Math.min(6, this.shake + 2);
-              this.events.push('boom');
-            }
-          }
+          if (s.hp <= 0) this.destroyAndReward(s);
           return;
         }
       }
@@ -577,16 +580,7 @@ export class World {
           s.hp -= GROUND.has(s.kind) ? p.damage * 0.5 : p.damage;
           s.hitFlash = 0.1;
           p.age = p.life;
-          if (s.hp <= 0 && this.destroySub(s)) {
-            this.score += BASE_SCORE[s.kind];
-            this.kills++;
-            if (s.kind !== 'scout') {
-              this.boomParticles(s.x, s.y, 10);
-              this.rings.push({ x: s.x, y: s.y, age: 0 });
-              this.shake = Math.min(6, this.shake + 2);
-              this.events.push('boom');
-            }
-          }
+          if (s.hp <= 0) this.destroyAndReward(s);
           return;
         }
       }
