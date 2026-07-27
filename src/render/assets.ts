@@ -17,7 +17,11 @@ export const GRAPHICS_MANIFEST: AssetManifest = {
   player: { heli: '/assets/graphics/player-heli.png' },
   enemy: {},
   weapon: {},
-  scenery: {},
+  scenery: {
+    militaryConcrete: '/assets/graphics/scenery/military-concrete.png',
+    ruralWall: '/assets/graphics/scenery/rural-wall.png',
+    desertStone: '/assets/graphics/scenery/desert-stone.png',
+  },
 };
 
 type ImageLoader = (url: string) => Promise<CanvasImageSource>;

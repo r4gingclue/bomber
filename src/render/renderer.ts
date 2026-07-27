@@ -9,6 +9,7 @@ import { COL_W, COLS } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
 import type { LoadedAssets } from './assets';
 import { helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
+import { sceneryForTerrain, type SceneryProp } from './scenery';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   return { x: 40 + i * 140, y: 80, w: 120, h: 110 };
@@ -48,95 +49,10 @@ export class Renderer {
     const shy = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const cam = world.camX + shx;
     const oy = shy; // vertical shake offset for world-space drawing
-    const pal = PALETTES[world.terrain.biome];
-
-    // sky
-    const sky = ctx.createLinearGradient(0, 0, 0, WATERLINE);
-    sky.addColorStop(0, pal.skyTop);
-    sky.addColorStop(1, pal.skyBottom);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    // far clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    for (const cl of CLOUDS_FAR) {
-      const x = wrapX(cl.x, cam, 0.15);
-      ctx.fillRect(x, cl.y + oy * 0.3, cl.w, 4);
-      ctx.fillRect(x + 8, cl.y - 2 + oy * 0.3, cl.w - 16, 2);
-    }
-    // horizon haze
-    ctx.fillStyle = 'rgba(230,240,255,0.25)';
-    ctx.fillRect(0, WATERLINE - 22 + oy, VIEW_W, 22);
-    // near clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    for (const cl of CLOUDS_NEAR) {
-      const x = wrapX(cl.x, cam, 0.4);
-      ctx.fillRect(x, cl.y + oy * 0.6, cl.w, 5);
-      ctx.fillRect(x + 6, cl.y - 3 + oy * 0.6, cl.w - 12, 3);
-    }
-    // sea with depth fog
-    const sea = ctx.createLinearGradient(0, WATERLINE, 0, VIEW_H);
-    sea.addColorStop(0, pal.seaTop);
-    sea.addColorStop(0.5, '#082d58');
-    sea.addColorStop(1, pal.seaDeep);
-    ctx.fillStyle = sea;
-    ctx.fillRect(0, WATERLINE + oy, VIEW_W, VIEW_H - WATERLINE);
-    // terrain silhouette (land columns cover the sea gradient)
-    for (let i = 0; i < COLS; i++) {
-      if (world.terrain.water[i]) continue;
-      const x = Math.round(i * COL_W - cam);
-      if (x < -COL_W || x > VIEW_W) continue;
-      const s = Math.round(world.terrain.surface[i] + oy);
-      ctx.fillStyle = pal.ground;
-      ctx.fillRect(x, s, COL_W, VIEW_H - s);
-      ctx.fillStyle = pal.groundDark;
-      ctx.fillRect(x, Math.min(VIEW_H, s + 14), COL_W, Math.max(0, VIEW_H - s - 14));
-    }
-    // LZ pads
-    for (const span of world.terrain.lz) {
-      const x0 = Math.round(span.x0 - cam);
-      const w = span.x1 - span.x0;
-      if (x0 + w < 0 || x0 > VIEW_W) continue;
-      const y = Math.round(this.surfaceYAt(world, span.x0) + oy);
-      ctx.fillStyle = '#d8dde4';
-      ctx.fillRect(x0, y - 1, w, 2);
-      this.text('H', x0 + w / 2, y - 4, 7, '#12233d', true);
-    }
-    // light rays (fade out by mid-depth)
-    if (world.terrain.biome !== 'inland') {
-      const midY = (WATERLINE + VIEW_H) / 2;
-      ctx.fillStyle = 'rgba(159,216,255,0.06)';
-      for (let i = 0; i < 4; i++) {
-        const rx = wrapX(i * 130, cam, 0.6) + Math.sin(t * 0.3 + i) * 8;
-        ctx.beginPath();
-        ctx.moveTo(rx, WATERLINE + oy);
-        ctx.lineTo(rx + 26, WATERLINE + oy);
-        ctx.lineTo(rx + 44, midY + oy);
-        ctx.lineTo(rx + 8, midY + oy);
-        ctx.fill();
-      }
-      // sun glare on water
-      const glx = wrapX(300, cam, 0.9);
-      const glare = ctx.createRadialGradient(glx, WATERLINE + 6 + oy, 2, glx, WATERLINE + 6 + oy, 60);
-      glare.addColorStop(0, 'rgba(255,244,200,0.25)');
-      glare.addColorStop(1, 'rgba(255,244,200,0)');
-      ctx.fillStyle = glare;
-      ctx.fillRect(glx - 60, WATERLINE - 4 + oy, 120, 24);
-    }
-    // waterline: two wave rows + foam caps
-    for (let x = 0; x < VIEW_W; x += 4) {
-      const col = Math.max(0, Math.min(COLS - 1, Math.floor((x + cam) / COL_W)));
-      if (!world.terrain.water[col]) continue;
-      const h1 = 1 + Math.round(Math.sin((x + cam) * 0.08 + t * 2.5) + 1);
-      ctx.fillStyle = '#bfe3ff';
-      ctx.fillRect(x, WATERLINE - h1 + oy, 4, h1);
-      const h2 = Math.round(Math.sin((x + cam) * 0.15 - t * 1.8) + 1);
-      if (h2 > 1) {
-        ctx.fillStyle = '#f0faff';
-        ctx.fillRect(x + 1, WATERLINE - h1 - 1 + oy, 2, 1);
-      }
-      ctx.fillStyle = '#7db8e8';
-      ctx.fillRect(x, WATERLINE + oy, 4, 1 + h2);
-    }
+    this.drawBackground(world, cam, oy, t);
+    this.drawTerrain(world, cam, oy, t);
+    this.drawScenery(world, cam, oy);
+    this.drawWater(world, cam, oy, t);
 
     // --- entities (world space) ---
     const dr = (frame: string, x: number, y: number, flip = false, rot = 0) => {
@@ -239,6 +155,289 @@ export class Renderer {
     if (phase === 'upgrade') this.upgrade(cards);
     if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
+  }
+
+  private drawBackground(world: World, cam: number, oy: number, t: number): void {
+    const { ctx } = this;
+    const pal = PALETTES[world.terrain.biome];
+    const sky = ctx.createLinearGradient(0, 0, 0, WATERLINE);
+    sky.addColorStop(0, pal.skyTop);
+    sky.addColorStop(1, pal.skyBottom);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    for (const cl of CLOUDS_FAR) {
+      const x = wrapX(cl.x, cam, 0.15);
+      const drift = Math.sin(t * 0.08 + cl.x) * 0.4;
+      ctx.fillRect(x, cl.y + oy * 0.3 + drift, cl.w, 4);
+      ctx.fillRect(x + 8, cl.y - 2 + oy * 0.3 + drift, cl.w - 16, 2);
+    }
+
+    ctx.fillStyle = 'rgba(230,240,255,0.25)';
+    ctx.fillRect(0, WATERLINE - 22 + oy, VIEW_W, 22);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (const cl of CLOUDS_NEAR) {
+      const x = wrapX(cl.x, cam, 0.4);
+      const drift = Math.sin(t * 0.12 + cl.y) * 0.6;
+      ctx.fillRect(x, cl.y + oy * 0.6 + drift, cl.w, 5);
+      ctx.fillRect(x + 6, cl.y - 3 + oy * 0.6 + drift, cl.w - 12, 3);
+    }
+
+    if (world.terrain.biome === 'inland') {
+      ctx.fillStyle = pal.skyBottom;
+    } else {
+      const sea = ctx.createLinearGradient(0, WATERLINE, 0, VIEW_H);
+      sea.addColorStop(0, pal.seaTop);
+      sea.addColorStop(0.5, '#082d58');
+      sea.addColorStop(1, pal.seaDeep);
+      ctx.fillStyle = sea;
+    }
+    ctx.fillRect(0, WATERLINE + oy, VIEW_W, VIEW_H - WATERLINE);
+  }
+
+  private drawTerrain(world: World, cam: number, oy: number, t: number): void {
+    const { ctx } = this;
+    const pal = PALETTES[world.terrain.biome];
+    const face = ctx.createLinearGradient(0, WATERLINE - 80, 0, VIEW_H);
+    face.addColorStop(0, pal.ground);
+    face.addColorStop(0.35, pal.ground);
+    face.addColorStop(1, pal.groundDark);
+
+    for (const [start, end] of this.landRuns(world)) {
+      if ((end + 1) * COL_W - cam < -COL_W || start * COL_W - cam > VIEW_W + COL_W) continue;
+      this.traceLand(world, start, end, cam, oy, true);
+      ctx.fillStyle = face;
+      ctx.fill();
+
+      const texture = world.terrain.biome === 'coast'
+        ? this.assets.scenery.ruralWall
+        : this.assets.scenery.desertStone;
+      if (texture) {
+        ctx.save();
+        this.traceLand(world, start, end, cam, oy, true);
+        ctx.clip();
+        ctx.globalAlpha = 0.12 + Math.sin(t * 0.2) * 0.01;
+        this.tileTexture(texture, cam, oy);
+        ctx.restore();
+      }
+
+      this.traceLand(world, start, end, cam, oy, false);
+      ctx.strokeStyle = world.terrain.biome === 'inland' ? '#a8bb78' : '#ead49a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    for (const span of world.terrain.lz) {
+      const x0 = Math.round(span.x0 - cam);
+      const w = span.x1 - span.x0;
+      if (x0 + w < 0 || x0 > VIEW_W) continue;
+      const y = Math.round(this.surfaceYAt(world, span.x0) + oy);
+      ctx.fillStyle = '#d8dde4';
+      ctx.fillRect(x0, y - 1, w, 2);
+      const concrete = this.assets.scenery.militaryConcrete;
+      if (concrete) {
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.drawImage(concrete, x0, y - 2, w, 3);
+        ctx.restore();
+      }
+      this.text('H', x0 + w / 2, y - 4, 7, '#12233d', true);
+    }
+  }
+
+  private drawScenery(world: World, cam: number, oy: number): void {
+    for (const prop of sceneryForTerrain(world.terrain, world.act)) {
+      const x = prop.x - cam;
+      if (x < -24 || x > VIEW_W + 24) continue;
+      const y = this.surfaceYAt(world, prop.x) + oy;
+      this.drawSceneryProp(prop, x, y);
+    }
+  }
+
+  private drawWater(world: World, cam: number, oy: number, t: number): void {
+    const { ctx } = this;
+    if (world.terrain.biome !== 'inland') {
+      const midY = (WATERLINE + VIEW_H) / 2;
+      ctx.fillStyle = 'rgba(159,216,255,0.06)';
+      for (let i = 0; i < 4; i++) {
+        const rx = wrapX(i * 130, cam, 0.6) + Math.sin(t * 0.3 + i) * 8;
+        ctx.beginPath();
+        ctx.moveTo(rx, WATERLINE + oy);
+        ctx.lineTo(rx + 26, WATERLINE + oy);
+        ctx.lineTo(rx + 44, midY + oy);
+        ctx.lineTo(rx + 8, midY + oy);
+        ctx.fill();
+      }
+
+      const glx = wrapX(300, cam, 0.9);
+      const glare = ctx.createRadialGradient(
+        glx,
+        WATERLINE + 6 + oy,
+        2,
+        glx,
+        WATERLINE + 6 + oy,
+        60,
+      );
+      glare.addColorStop(0, 'rgba(255,244,200,0.25)');
+      glare.addColorStop(1, 'rgba(255,244,200,0)');
+      ctx.fillStyle = glare;
+      ctx.fillRect(glx - 60, WATERLINE - 4 + oy, 120, 24);
+    }
+
+    for (let x = 0; x < VIEW_W; x += 4) {
+      const col = Math.max(0, Math.min(COLS - 1, Math.floor((x + cam) / COL_W)));
+      if (!world.terrain.water[col]) continue;
+      const h1 = 1 + Math.round(Math.sin((x + cam) * 0.08 + t * 2.5) + 1);
+      ctx.fillStyle = '#bfe3ff';
+      ctx.fillRect(x, WATERLINE - h1 + oy, 4, h1);
+      const h2 = Math.round(Math.sin((x + cam) * 0.15 - t * 1.8) + 1);
+      if (h2 > 1) {
+        ctx.fillStyle = '#f0faff';
+        ctx.fillRect(x + 1, WATERLINE - h1 - 1 + oy, 2, 1);
+      }
+      ctx.fillStyle = '#7db8e8';
+      ctx.fillRect(x, WATERLINE + oy, 4, 1 + h2);
+    }
+  }
+
+  private landRuns(world: World): [number, number][] {
+    const runs: [number, number][] = [];
+    let start = -1;
+    for (let col = 0; col <= world.terrain.surface.length; col++) {
+      const land = col < world.terrain.surface.length && !world.terrain.water[col];
+      if (land && start < 0) start = col;
+      if (!land && start >= 0) {
+        runs.push([start, col - 1]);
+        start = -1;
+      }
+    }
+    return runs;
+  }
+
+  private traceLand(
+    world: World,
+    start: number,
+    end: number,
+    cam: number,
+    oy: number,
+    closeFace: boolean,
+  ): void {
+    const { ctx } = this;
+    const surface = world.terrain.surface;
+    const yAt = (col: number) => surface[Math.max(start, Math.min(end, col))] + oy;
+    const xAt = (col: number) => col * COL_W + COL_W / 2 - cam;
+    ctx.beginPath();
+    ctx.moveTo(start * COL_W - cam, yAt(start));
+    ctx.lineTo(xAt(start), yAt(start));
+    for (let col = start; col < end; col++) {
+      const y0 = yAt(col - 1);
+      const y1 = yAt(col);
+      const y2 = yAt(col + 1);
+      const y3 = yAt(col + 2);
+      const low = Math.min(y1, y2);
+      const high = Math.max(y1, y2);
+      const c1y = Math.max(low, Math.min(high, y1 + (y2 - y0) / 6));
+      const c2y = Math.max(low, Math.min(high, y2 - (y3 - y1) / 6));
+      ctx.bezierCurveTo(
+        xAt(col) + COL_W / 3,
+        c1y,
+        xAt(col + 1) - COL_W / 3,
+        c2y,
+        xAt(col + 1),
+        y2,
+      );
+    }
+    ctx.lineTo((end + 1) * COL_W - cam, yAt(end));
+    if (closeFace) {
+      ctx.lineTo((end + 1) * COL_W - cam, VIEW_H);
+      ctx.lineTo(start * COL_W - cam, VIEW_H);
+      ctx.closePath();
+    }
+  }
+
+  private tileTexture(image: CanvasImageSource, cam: number, oy: number): void {
+    const size = 128;
+    const offsetX = -((cam % size) + size) % size;
+    const offsetY = ((oy % size) + size) % size - size;
+    for (let x = offsetX - size; x < VIEW_W + size; x += size) {
+      for (let y = offsetY; y < VIEW_H + size; y += size) {
+        this.ctx.drawImage(image, x, y, size, size);
+      }
+    }
+  }
+
+  private drawSceneryProp(prop: SceneryProp, x: number, y: number): void {
+    const { ctx } = this;
+    const scale = prop.scale;
+    if (prop.kind === 'scrub') {
+      ctx.strokeStyle = '#3f4f2c';
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - 7 * scale);
+      ctx.moveTo(x, y - 4 * scale);
+      ctx.lineTo(x - 4 * scale, y - 8 * scale);
+      ctx.moveTo(x, y - 5 * scale);
+      ctx.lineTo(x + 4 * scale, y - 9 * scale);
+      ctx.stroke();
+      ctx.fillStyle = '#738450';
+      ctx.beginPath();
+      ctx.ellipse(x - 3 * scale, y - 8 * scale, 4 * scale, 2.5 * scale, -0.3, 0, Math.PI * 2);
+      ctx.ellipse(x + 3 * scale, y - 9 * scale, 4.5 * scale, 2.5 * scale, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    const rural = prop.kind === 'rural';
+    const desert = prop.kind === 'desert';
+    const military = prop.kind === 'military';
+    const w = (rural ? 12 : desert || military ? 13 : 11) * scale;
+    const h = (rural ? 8 : desert || military ? 6 : 5) * scale;
+    const texture = rural ? this.assets.scenery.ruralWall
+      : military ? this.assets.scenery.militaryConcrete
+        : this.assets.scenery.desertStone;
+
+    ctx.save();
+    ctx.beginPath();
+    if (rural) {
+      ctx.rect(x - w / 2, y - h, w, h);
+    } else if (desert || military) {
+      ctx.moveTo(x - w / 2, y);
+      ctx.lineTo(x - w * 0.42, y - h);
+      ctx.lineTo(x + w * 0.35, y - h);
+      ctx.lineTo(x + w / 2, y);
+      ctx.closePath();
+    } else {
+      ctx.moveTo(x - w / 2, y);
+      ctx.lineTo(x - w * 0.35, y - h * 0.7);
+      ctx.lineTo(x - w * 0.08, y - h);
+      ctx.lineTo(x + w * 0.32, y - h * 0.75);
+      ctx.lineTo(x + w / 2, y);
+      ctx.closePath();
+    }
+    ctx.fillStyle = rural ? '#ad9a78' : military ? '#777b72' : '#9c855c';
+    ctx.fill();
+    if (texture) {
+      ctx.clip();
+      ctx.globalAlpha = 0.65;
+      ctx.drawImage(texture, x - w / 2, y - h, w, h);
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(37,35,28,0.7)';
+    ctx.lineWidth = 0.75;
+    ctx.stroke();
+    if (rural) {
+      ctx.fillStyle = '#6d513d';
+      ctx.beginPath();
+      ctx.moveTo(x - w * 0.6, y - h);
+      ctx.lineTo(x, y - h - 4 * scale);
+      ctx.lineTo(x + w * 0.6, y - h);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   private text(s: string, x: number, y: number, size = 8, col = '#e8f2ff', center = false): void {
