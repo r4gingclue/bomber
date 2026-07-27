@@ -11,12 +11,33 @@ import { Renderer, cardRect } from './render/renderer';
 import { aimFromStick } from './game/aim';
 import { clientToWorld, fitViewport, type Insets } from './render/viewport';
 import { GRAPHICS_MANIFEST, loadAssets } from './render/assets';
+import { renderFatalBootError } from './render/fatal';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 canvas.width = RENDER_W;
 canvas.height = RENDER_H;
 const ctx = canvas.getContext('2d')!;
 ctx.scale(RENDER_SCALE, RENDER_SCALE);
+
+function safeInsets(): Insets {
+  const css = getComputedStyle(document.documentElement);
+  const n = (name: string) => Number.parseFloat(css.getPropertyValue(name)) || 0;
+  return { top: n('--sat'), right: n('--sar'), bottom: n('--sab'), left: n('--sal') };
+}
+
+let viewport = fitViewport(innerWidth, innerHeight, safeInsets());
+function resize(): void {
+  viewport = fitViewport(innerWidth, innerHeight, safeInsets());
+  Object.assign(canvas.style, {
+    position: 'fixed',
+    left: `${viewport.x}px`,
+    top: `${viewport.y}px`,
+    width: `${viewport.width}px`,
+    height: `${viewport.height}px`,
+  });
+}
+window.addEventListener('resize', resize);
+resize();
 
 async function boot(): Promise<void> {
   const assets = await loadAssets(GRAPHICS_MANIFEST);
@@ -29,26 +50,6 @@ async function boot(): Promise<void> {
   let cards: UpgradeCard[] = [];
   let elapsed = 0;
   let introT = 0;
-
-  function safeInsets(): Insets {
-    const css = getComputedStyle(document.documentElement);
-    const n = (name: string) => Number.parseFloat(css.getPropertyValue(name)) || 0;
-    return { top: n('--sat'), right: n('--sar'), bottom: n('--sab'), left: n('--sal') };
-  }
-
-  let viewport = fitViewport(innerWidth, innerHeight, safeInsets());
-  function resize(): void {
-    viewport = fitViewport(innerWidth, innerHeight, safeInsets());
-    Object.assign(canvas.style, {
-      position: 'fixed',
-      left: `${viewport.x}px`,
-      top: `${viewport.y}px`,
-      width: `${viewport.width}px`,
-      height: `${viewport.height}px`,
-    });
-  }
-  window.addEventListener('resize', resize);
-  resize();
 
   input.attach(canvas);
   input.onGesture = () => audio.resume();
@@ -158,4 +159,7 @@ async function boot(): Promise<void> {
   });
 }
 
-void boot();
+void boot().catch(error => {
+  console.error('Sea Bomber failed to start', error);
+  renderFatalBootError(canvas, error);
+});
