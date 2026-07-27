@@ -21,3 +21,10 @@ it('round-trips world coordinates through render and client space', () => {
   expect(clientToWorld(640, 360, v))
     .toEqual({ x: 240, y: 135 });
 });
+
+it('maps the visual center of a rounded safe-area viewport to the simulation center', () => {
+  const v = fitViewport(390, 844, { top: 47, right: 0, bottom: 34, left: 0 });
+
+  expect(clientToWorld(v.x + v.width / 2, v.y + v.height / 2, v))
+    .toEqual({ x: 240, y: 135 });
+});

@@ -21,7 +21,7 @@ export const worldToRender = (x: number, y: number) =>
 
 export function clientToWorld(x: number, y: number, v: ViewportRect) {
   return {
-    x: (x - v.x) / v.scale / RENDER_SCALE,
-    y: (y - v.y) / v.scale / RENDER_SCALE,
+    x: (x - v.x) * RENDER_W / v.width / RENDER_SCALE,
+    y: (y - v.y) * RENDER_H / v.height / RENDER_SCALE,
   };
 }
