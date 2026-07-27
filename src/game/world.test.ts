@@ -454,6 +454,26 @@ describe('World', () => {
     expect(w.rings.some(r => r.x === x && r.y === y + 7)).toBe(true);
   });
 
+  it.each(['sam', 'flak', 'shot', 'torpedo'] as const)(
+    'autocannon bullets can intercept hostile %s projectiles',
+    ptype => {
+      const w = new World(mulberry32(1));
+      w.startWave();
+      w.subs.length = 0;
+      const x = w.player.x + 80;
+      const y = w.player.y;
+      w.shots.push(
+        { id: 724, ptype, x, y: y + 6, vx: -140, vy: 0, age: 0, life: 4, damage: 20 },
+        { id: 725, ptype: 'bullet', x, y, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 },
+      );
+
+      w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+      expect(w.shots.some(p => p.id === 724)).toBe(false);
+      expect(w.shots.some(p => p.id === 725)).toBe(false);
+    },
+  );
+
   it('spawns player missiles with the specified speed, damage, and lifetime', () => {
     const w = new World(mulberry32(1));
     w.stats.missileCap = 1;

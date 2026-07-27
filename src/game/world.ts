@@ -26,8 +26,12 @@ const SUB_R = 9;
 const MINE_CHAIN_R = 30;
 const FUSE_R = 12;
 export const SCOUT_BLAST_R = 30;
-const SAM_INTERCEPT_R = 7;
+const PROJECTILE_INTERCEPT_R = 7;
 const DAMAGE = { torpedo: 20, sam: 25, flak: 15, water: 10 } as const;
+
+function isHostileProjectile(p: Projectile): boolean {
+  return p.ptype !== 'bullet' && p.ptype !== 'pmissile';
+}
 
 export function scoreBlast(
   killed: { kind: SpawnKind; y: number }[],
@@ -289,7 +293,7 @@ export class World {
       if (p.pdCd > 0) p.pdCd -= dt;
       if (p.pdCd <= 0) {
         const near = this.shots.find(s =>
-          s.ptype !== 'bullet' && s.ptype !== 'pmissile' && Math.hypot(s.x - p.x, s.y - p.y) < 45);
+          isHostileProjectile(s) && Math.hypot(s.x - p.x, s.y - p.y) < 45);
         if (near) {
           near.age = near.life;
           p.pdCd = 0.4;
@@ -594,8 +598,8 @@ export class World {
         return;
       }
       const rocket = this.shots.find(s =>
-        s !== p && s.ptype === 'sam' && s.age < s.life &&
-        circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SAM_INTERCEPT_R }));
+        s !== p && isHostileProjectile(s) && s.age < s.life &&
+        circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: PROJECTILE_INTERCEPT_R }));
       if (rocket) {
         p.age = p.life;
         rocket.age = rocket.life;
