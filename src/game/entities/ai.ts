@@ -1,5 +1,6 @@
 import type { Sub } from './types';
 import { surfaceAt, type Terrain } from '../terrain';
+import { ARENA_W } from '../consts';
 
 const cap = (s: Sub, max: number) => {
   const v = Math.hypot(s.vx, s.vy);
@@ -44,9 +45,12 @@ export function stepGunship(s: Sub, px: number, py: number, dt: number): boolean
 /** missile chopper: keep ~220px range, flee at 90 when closer than 100, lob homing shots */
 export function stepMchopper(s: Sub, px: number, py: number, dt: number): boolean {
   const dx = px - s.x;
-  const dist = Math.hypot(dx, py - s.y);
+  const dy = py - s.y;
+  const dist = Math.hypot(dx, dy);
   if (dist < 100) {
-    s.vx += -Math.sign(dx) * 240 * dt;
+    const away = dist || 1;
+    s.vx += (-dx / away) * 240 * dt;
+    s.vy += (-dy / away) * 240 * dt;
     cap(s, 90); // MUST stay below player max (~113): guardrail
   } else {
     const want = dist > 220 ? Math.sign(dx) : dist < 180 ? -Math.sign(dx) : 0;
@@ -75,12 +79,16 @@ export function stepAagun(s: Sub, _px: number, _py: number, dt: number): boolean
   return false;
 }
 
-/** tank: patrol horizontally, glued to the terrain surface, reverse on slope > 6px */
+/** tank: patrol horizontally, glued to the terrain surface, reverse at its limits or slope > 6px */
 export function stepTank(s: Sub, t: Terrain, _px: number, dt: number): boolean {
+  const minX = Math.max(0, s.patrol?.x0 ?? 0);
+  const maxX = Math.min(ARENA_W, s.patrol?.x1 ?? ARENA_W);
   const nx = s.x + s.dir * 20 * dt;
   const drop = Math.abs(surfaceAt(t, nx + s.dir * 10) - surfaceAt(t, s.x));
-  if (drop > 6) s.dir = s.dir === 1 ? -1 : 1;
-  else s.x = nx;
+  if (nx < minX || nx > maxX || drop > 6) {
+    s.x = Math.max(minX, Math.min(maxX, s.x));
+    s.dir = s.dir === 1 ? -1 : 1;
+  } else s.x = nx;
   s.y = surfaceAt(t, s.x) - 4;
   s.vx = s.dir * 20;
   s.fireTimer -= dt;

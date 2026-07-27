@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { World, scoreBlast, BASE_SCORE } from './world';
 import { WATERLINE } from './consts';
 import { mulberry32 } from '../core/rng';
@@ -62,8 +62,11 @@ describe('World', () => {
     w.startWave();
     const bad = w.subs[0];
     Object.defineProperty(bad, 'x', { get() { throw new Error('boom'); } });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false })).not.toThrow();
     expect(w.subs.includes(bad)).toBe(false);
+    expect(error).toHaveBeenCalledWith('entity removed after error', expect.any(Error));
+    error.mockRestore();
   });
 
   it('fires bullets toward the aim point', () => {
@@ -255,6 +258,23 @@ describe('World', () => {
     }
   });
 
+  it('spawns tanks inside a flat plateau patrol span', () => {
+    const w = new World(mulberry32(1));
+    w.act = 3;
+    w.terrain = generateTerrain('inland', mulberry32(4));
+    w.wave = 8;
+    w.startWave();
+    const tanks = w.subs.filter(s => s.kind === 'tank') as Array<typeof w.subs[number] & { patrol?: { x0: number; x1: number } }>;
+    expect(tanks.length).toBeGreaterThan(0);
+    for (const tank of tanks) {
+      expect(tank.patrol).toBeDefined();
+      expect(tank.x).toBeGreaterThanOrEqual(tank.patrol!.x0);
+      expect(tank.x).toBeLessThanOrEqual(tank.patrol!.x1);
+      expect(tank.patrol!.x0).toBeGreaterThanOrEqual(w.terrain.lz[1].x0);
+      expect(tank.patrol!.x1).toBeLessThanOrEqual(w.terrain.lz[1].x1);
+    }
+  });
+
   it('scout death blast does not chain mines', () => {
     const w = new World(mulberry32(1));
     w.startWave();
@@ -285,7 +305,7 @@ describe('World', () => {
     expect(tank.hp).toBe(16); // 8 * 0.5 = 4 chip
   });
 
-  it('scout depth-charge deaths blast the player without chaining nearby mines', () => {
+  it('scout depth-charge deaths do not hit a far player or chain nearby mines', () => {
     const w = new World(mulberry32(1));
     w.startWave();
     w.subs.length = 0;
@@ -299,9 +319,24 @@ describe('World', () => {
 
     expect(w.subs.some(s => s.id === 607)).toBe(false);
     expect(w.subs.some(s => s.id === 608)).toBe(true);
-    expect(w.player.hp).toBe(80);
+    expect(w.player.hp).toBe(100);
     expect(w.kills).toBe(1);
     expect(w.score).toBe(BASE_SCORE.scout + 32);
+  });
+
+  it('scout death blasts only damage a nearby player', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    w.player.x = 300;
+    w.player.y = 120;
+    w.subs.push({ id: 620, kind: 'scout', hp: 1, x: 300, y: 135, vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+    w.shots.push({ id: 621, ptype: 'bullet', x: 295, y: 135, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.subs).toHaveLength(0);
+    expect(w.player.hp).toBe(80);
   });
 
   it('unrelated AA guns do not let terrain-embedded bullets hit gunships', () => {
@@ -461,7 +496,7 @@ describe('World', () => {
     }
 
     expect(w.subs).toHaveLength(0);
-    expect(w.player.hp).toBe(80);
+    expect(w.player.hp).toBe(100);
     expect(w.score).toBe(BASE_SCORE.scout);
     expect(w.kills).toBe(1);
     expect(w.events.filter(e => e === 'boom')).toHaveLength(1);

@@ -25,6 +25,7 @@ const PLAYER_R = 8;
 const SUB_R = 9;
 const MINE_CHAIN_R = 30;
 const FUSE_R = 12;
+export const SCOUT_BLAST_R = 30;
 const DAMAGE = { torpedo: 20, sam: 25, flak: 15, water: 10 } as const;
 
 export function scoreBlast(
@@ -114,13 +115,30 @@ export class World {
       return;
     }
     if (GROUND.has(kind)) {
-      let x = this.rng() * ARENA_W;
-      for (let tries = 0; tries < 30 && isWater(this.terrain, x); tries++) x = this.rng() * ARENA_W;
+      let patrol: Sub['patrol'];
+      let x: number;
+      if (kind === 'tank') {
+        const preferred = this.terrain.biome === 'inland' ? this.terrain.lz[1] : undefined;
+        const span = preferred ?? this.terrain.lz.find(s => !isWater(this.terrain, (s.x0 + s.x1) / 2));
+        if (span) {
+          patrol = {
+            x0: Math.max(SUB_R, span.x0 + SUB_R),
+            x1: Math.min(ARENA_W - SUB_R, span.x1 - SUB_R),
+          };
+          x = patrol.x0 + this.rng() * (patrol.x1 - patrol.x0);
+        } else {
+          x = this.rng() * ARENA_W;
+          for (let tries = 0; tries < 30 && isWater(this.terrain, x); tries++) x = this.rng() * ARENA_W;
+        }
+      } else {
+        x = this.rng() * ARENA_W;
+        for (let tries = 0; tries < 30 && isWater(this.terrain, x); tries++) x = this.rng() * ARENA_W;
+      }
       this.subs.push({
         id: this.nextId++, kind, hp: kind === 'tank' ? 20 : 1,
         x, y: surfaceAt(this.terrain, x) - 4,
         vx: 0, vy: 0, dir: this.rng() < 0.5 ? -1 : 1,
-        fireTimer: 1.5 + this.rng() * 2, surfaceTimer: 0, surfaced: false, hitFlash: 0,
+        fireTimer: 1.5 + this.rng() * 2, surfaceTimer: 0, surfaced: false, hitFlash: 0, patrol,
       });
       return;
     }
@@ -480,7 +498,7 @@ export class World {
 
   private scoutBlast(s: Sub): void {
     this.subs = this.subs.filter(o => o.id !== s.id);
-    this.damagePlayer(20);
+    if (Math.hypot(s.x - this.player.x, s.y - this.player.y) <= SCOUT_BLAST_R) this.damagePlayer(20);
     this.boomParticles(s.x, s.y, 10);
     this.rings.push({ x: s.x, y: s.y, age: 0 });
     this.shake = Math.min(6, this.shake + 2);

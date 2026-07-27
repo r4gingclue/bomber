@@ -28,19 +28,36 @@ describe('stepGunship', () => {
   });
   it('fires 3-round bursts on a cooldown', () => {
     const s = foe('gunship', 540, 100);
-    let shots = 0;
-    for (let i = 0; i < 60 * 6; i++) if (stepGunship(s, 400, 100, 1 / 60)) shots++;
-    expect(shots).toBeGreaterThanOrEqual(3);
-    expect(shots).toBeLessThanOrEqual(9); // ≤ 2 bursts + margin in 6s
+    const shots: number[] = [];
+    const dt = 0.01;
+    for (let t = dt; t < 3.2; t += dt) {
+      if (stepGunship(s, 400, 100, dt)) shots.push(t);
+    }
+    expect(shots).toHaveLength(6);
+    for (const i of [1, 2, 4, 5]) {
+      expect(shots[i] - shots[i - 1]).toBeGreaterThanOrEqual(0.12);
+      expect(shots[i] - shots[i - 1]).toBeLessThanOrEqual(0.12 + dt + 1e-9);
+    }
+    expect(shots[3] - shots[2]).toBeGreaterThanOrEqual(2.5);
+    expect(shots[3] - shots[2]).toBeLessThanOrEqual(2.5 + dt + 1e-9);
   });
 });
 
 describe('stepMchopper', () => {
-  it('flees when the player closes within 100px, at speed ≤ 90', () => {
-    const s = foe('mchopper', 450, 100);
-    for (let i = 0; i < 120; i++) stepMchopper(s, 400, 100, 1 / 60);
-    expect(Math.abs(s.x - 400)).toBeGreaterThan(50); // moved away
-    expect(Math.hypot(s.vx, s.vy)).toBeLessThanOrEqual(90 + 1e-6);
+  it('flees along the full 2D away vector and caps every step', () => {
+    const scenarios = [
+      { x: 400, y: 50, px: 400, py: 100 }, // vertical
+      { x: 450, y: 50, px: 400, py: 100 }, // diagonal
+    ];
+    for (const c of scenarios) {
+      const s = foe('mchopper', c.x, c.y);
+      const initialDistance = Math.hypot(s.x - c.px, s.y - c.py);
+      for (let i = 0; i < 120; i++) {
+        stepMchopper(s, c.px, c.py, 1 / 60);
+        expect(Math.hypot(s.vx, s.vy)).toBeLessThanOrEqual(90 + 1e-6);
+      }
+      expect(Math.hypot(s.x - c.px, s.y - c.py)).toBeGreaterThan(initialDistance);
+    }
   });
 });
 
@@ -61,5 +78,32 @@ describe('stepTank', () => {
     const s = foe('tank', (span.x0 + span.x1) / 2, 0);
     for (let i = 0; i < 240; i++) stepTank(s, t, 100, 1 / 60);
     expect(Math.abs(s.y - (surfaceAt(t, s.x) - 4))).toBeLessThan(2);
+  });
+
+  it('reverses at both arena edges and never leaves the arena', () => {
+    const t = generateTerrain('inland', mulberry32(4));
+    for (const [x, dir] of [[0, -1], [960, 1]] as const) {
+      const s = foe('tank', x, 0);
+      s.dir = dir;
+      stepTank(s, t, 100, 1 / 60);
+      expect(s.x).toBeGreaterThanOrEqual(0);
+      expect(s.x).toBeLessThanOrEqual(960);
+      expect(s.dir).toBe(-dir);
+    }
+  });
+
+  it('reverses at both ends of its flat plateau patrol span', () => {
+    const t = generateTerrain('inland', mulberry32(4));
+    const plateau = t.lz[1];
+    const patrol = { x0: plateau.x0 + 9, x1: plateau.x1 - 9 };
+    for (const [x, dir] of [[patrol.x0, -1], [patrol.x1, 1]] as const) {
+      const s = foe('tank', x, 0) as Sub & { patrol?: typeof patrol };
+      s.dir = dir;
+      s.patrol = patrol;
+      stepTank(s, t, 100, 1 / 60);
+      expect(s.x).toBeGreaterThanOrEqual(patrol.x0);
+      expect(s.x).toBeLessThanOrEqual(patrol.x1);
+      expect(s.dir).toBe(-dir);
+    }
   });
 });

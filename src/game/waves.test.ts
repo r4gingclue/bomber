@@ -41,8 +41,27 @@ describe('biome pools', () => {
   it('sea pool preserves the exact v1 kind order for RNG parity', () => {
     expect(POOLS.sea).toEqual(['patrol', 'mine', 'hunter', 'gunboat', 'missile']);
   });
-  it('sea composition is identical to the biome-less call (act-1 regression)', () => {
-    expect(composeWave(3, mulberry32(11))).toEqual(composeWave(3, mulberry32(11), 'sea'));
+  it('keeps Act 1 wave 1-3 compositions equal to golden v1 outputs', () => {
+    const golden: Record<number, SpawnKind[][]> = {
+      1: [
+        ['patrol', 'patrol', 'patrol', 'patrol', 'patrol', 'patrol'],
+        ['mine', 'patrol', 'mine', 'hunter', 'hunter', 'patrol'],
+        ['hunter', 'patrol', 'hunter', 'gunboat', 'gunboat'],
+      ],
+      11: [
+        ['patrol', 'patrol', 'patrol', 'patrol', 'patrol', 'patrol'],
+        ['mine', 'mine', 'mine', 'mine', 'hunter', 'mine', 'patrol'],
+        ['hunter', 'hunter', 'hunter', 'hunter', 'hunter'],
+      ],
+      42: [
+        ['patrol', 'patrol', 'patrol', 'patrol', 'patrol', 'patrol'],
+        ['mine', 'mine', 'hunter', 'hunter', 'patrol', 'mine'],
+        ['hunter', 'mine', 'gunboat', 'hunter', 'patrol', 'mine'],
+      ],
+    };
+    for (const [seed, expected] of Object.entries(golden)) {
+      expect([1, 2, 3].map(w => composeWave(w, mulberry32(Number(seed))))).toEqual(expected);
+    }
   });
   it('coast pool adds air enemies and aagun, inland drops subs', () => {
     expect(POOLS.coast).toContain('scout');

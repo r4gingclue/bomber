@@ -16,6 +16,8 @@ export interface Sub extends Entity {
   surfaceTimer: number;
   surfaced: boolean;
   hitFlash: number;
+  /** optional horizontal patrol limits for terrain-bound ground units */
+  patrol?: { x0: number; x1: number };
 }
 
 export type DepthCharge = Entity;

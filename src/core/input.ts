@@ -30,9 +30,8 @@ export class Input {
   private confirmQueued = false;
   private cardKeyQueued = -1;
   private mouseFire = false;
-  private firePointers = new Set<number>();
-  private fireHoldStart = 0;
-  private fireHoldSpent = false;
+  private touchFireQueued = false;
+  private firePointers = new Map<number, { startedAt: number; missileFired: boolean }>();
   private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private mouseAim: { x: number; y: number } | null = null;
@@ -78,11 +77,7 @@ export class Input {
       }
       const b = touchButtons();
       if (canvasPt && inCircle(canvasPt[0], canvasPt[1], b.fire)) {
-        if (this.firePointers.size === 0) {
-          this.fireHoldStart = performance.now();
-          this.fireHoldSpent = false;
-        }
-        this.firePointers.add(e.pointerId);
+        this.firePointers.set(e.pointerId, { startedAt: performance.now(), missileFired: false });
       } else if (canvasPt && inCircle(canvasPt[0], canvasPt[1], b.drop)) {
         this.dropQueued = true;
       } else {
@@ -108,10 +103,15 @@ export class Input {
       if (e.pointerType === 'mouse') this.mouseFire = false;
       if (this.stick.active && e.pointerId === this.stick.id) this.stick.active = false;
       if (this.aimStick.active && e.pointerId === this.aimStick.id) this.aimStick.active = false;
-      this.firePointers.delete(e.pointerId);
+      this.releaseFirePointer(e.pointerId, false);
+    };
+    const cancel = (e: PointerEvent) => {
+      if (this.stick.active && e.pointerId === this.stick.id) this.stick.active = false;
+      if (this.aimStick.active && e.pointerId === this.aimStick.id) this.aimStick.active = false;
+      this.releaseFirePointer(e.pointerId, true);
     };
     el.addEventListener('pointerup', release);
-    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointercancel', cancel);
   }
 
   poll(): Intent {
@@ -128,19 +128,41 @@ export class Input {
     }
     const drop = this.dropQueued;
     this.dropQueued = false;
-    if (this.firePointers.size > 0 && !this.fireHoldSpent && performance.now() - this.fireHoldStart >= 350) {
-      this.missileQueued = true;
-      this.fireHoldSpent = true;
-    }
+    this.queueHeldTouchMissiles();
+    const touchFire = this.touchFireQueued;
+    this.touchFireQueued = false;
     const missile = this.missileQueued;
     this.missileQueued = false;
     return {
       move: { x, y },
       drop,
-      fire: this.keys.has('KeyF') || this.mouseFire || this.firePointers.size > 0,
+      fire: this.keys.has('KeyF') || this.mouseFire || touchFire,
       missile,
       aim: null,
     };
+  }
+
+  private queueHeldTouchMissiles(): void {
+    const now = performance.now();
+    for (const fire of this.firePointers.values()) {
+      if (!fire.missileFired && now - fire.startedAt >= 350) {
+        this.missileQueued = true;
+        fire.missileFired = true;
+      }
+    }
+  }
+
+  private releaseFirePointer(pointerId: number, cancelled: boolean): void {
+    const fire = this.firePointers.get(pointerId);
+    if (!fire) return;
+    if (!cancelled) {
+      if (fire.missileFired || performance.now() - fire.startedAt >= 350) {
+        if (!fire.missileFired) this.missileQueued = true;
+      } else {
+        this.touchFireQueued = true;
+      }
+    }
+    this.firePointers.delete(pointerId);
   }
 
   /** Latest mouse position in canvas coords, or null before any mouse motion. */
