@@ -15,7 +15,9 @@ assets or code ship in this game.
 ## Controls
 
 - Move: WASD / arrows · Drop charge: Space · Cannon: F or mouse · Mute: M
-- Touch: left half = virtual stick, right-top = fire, right-bottom = drop
+- Touch: visible MOVE circle = movement · unoccupied non-button touch area
+  (normally right side) = aim stick · FIRE = tap for cannon, hold for missile ·
+  DROP = depth charge
 
 ## Develop
 

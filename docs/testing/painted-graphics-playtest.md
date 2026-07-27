@@ -98,9 +98,11 @@ combat cannot hold its selected quality tier.
   obscured object, cropped field, runaway memory growth, or failure to hold the
   automatically selected target tier. The run lasted 10m23s across twenty
   30-second windows, held `full`, averaged 0.29–0.31 ms render duration, reached
-  a 0.90 ms maximum, and produced no warning, error, or tier transition. The
-  browser exposed no heap telemetry; no increasing render time, fault, hang, or
-  other observable runaway-memory symptom appeared.
+  a 0.90 ms maximum, and produced no warning, error, or tier transition; the
+  [tracked timing record](painted-graphics-artifacts/heavy-combat-timing.json)
+  preserves every window and the source methodology. The browser exposed no
+  heap telemetry; no increasing render time, fault, hang, or other observable
+  runaway-memory symptom appeared.
 
 ## Screenshot evidence
 
@@ -109,15 +111,12 @@ and portrait-phone shape.
 
 | Biome | Desktop 1920×1080 DPR 1 | Landscape 844×390 DPR 3 | Portrait 390×844 DPR 3 |
 | --- | --- | --- | --- |
-| Sea | [`sea-desktop`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/sea-desktop-1920x1080-dpr1.png) | [`sea-landscape`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/sea-landscape-844x390-dpr3.png) | [`sea-portrait`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/sea-portrait-390x844-dpr3.png) |
-| Coast | [`coast-desktop`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/coast-desktop-1920x1080-dpr1.png) | [`coast-landscape`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/coast-landscape-844x390-dpr3.png) | [`coast-portrait`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/coast-portrait-390x844-dpr3.png) |
-| Inland | [`inland-desktop`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/inland-desktop-1920x1080-dpr1.png) | [`inland-landscape`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/inland-landscape-844x390-dpr3.png) | [`inland-portrait`](../../.superpowers/sdd/2026-07-27-painted-graphics-upgrade/artifacts/task-10/inland-portrait-390x844-dpr3.png) |
+| Sea | [`sea-desktop`](painted-graphics-artifacts/sea-desktop-1920x1080-dpr1.png) | [`sea-landscape`](painted-graphics-artifacts/sea-landscape-844x390-dpr3.png) | [`sea-portrait`](painted-graphics-artifacts/sea-portrait-390x844-dpr3.png) |
+| Coast | [`coast-desktop`](painted-graphics-artifacts/coast-desktop-1920x1080-dpr1.png) | [`coast-landscape`](painted-graphics-artifacts/coast-landscape-844x390-dpr3.png) | [`coast-portrait`](painted-graphics-artifacts/coast-portrait-390x844-dpr3.png) |
+| Inland | [`inland-desktop`](painted-graphics-artifacts/inland-desktop-1920x1080-dpr1.png) | [`inland-landscape`](painted-graphics-artifacts/inland-landscape-844x390-dpr3.png) | [`inland-portrait`](painted-graphics-artifacts/inland-portrait-390x844-dpr3.png) |
 
-Additional retained evidence in the same directory covers all ten
-player-pose/facing combinations, full/reduced/minimum quality, mouse/keyboard/
-touch aim, resize/orientation, reduced flash, heavy-combat start/end, and the
-clean 30-second production-preview smoke run. All files are real PNG images with
-dimensions matching their names.
+The tracked artifact directory contains the nine required representative PNGs
+and the raw timing record. The PNG dimensions match their names.
 
 ## Automated gates
 
@@ -125,6 +124,8 @@ dimensions matching their names.
 - [x] `npx vitest run` — 23 files / 159 tests passed.
 - [x] `npm run build` — 31 modules transformed; production preview ran for 30
   seconds with no warning or error.
+- [x] Local documentation-link and artifact validation — all 14 local Markdown
+  links resolve; the nine cited PNGs and timing JSON are tracked.
 - [x] `git diff --check`
 - [x] `git ls-files | rg '\.(zip|rar)$' && exit 1 || true` (no tracked source
   archives)
