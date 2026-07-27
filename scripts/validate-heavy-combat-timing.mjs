@@ -9,12 +9,29 @@ const artifactDir = resolve(root, 'docs/testing/painted-graphics-artifacts');
 const rawPath = resolve(artifactDir, 'heavy-combat-samples.csv');
 const summaryPath = resolve(artifactDir, 'heavy-combat-summary.json');
 const windowDurationMs = 30_000;
+const minimumDurationMs = 600_000;
+const maximumPlayableP95Ms = 34;
 const validTiers = new Set(['full', 'reduced', 'minimum']);
 const round = (value, digits = 6) => Number(value.toFixed(digits));
 
+function percentile(values, fraction) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1));
+  return sorted[index];
+}
+
+function statistics(values) {
+  return {
+    minimum: round(Math.min(...values)),
+    maximum: round(Math.max(...values)),
+    mean: round(values.reduce((sum, value) => sum + value, 0) / values.length),
+    p95: round(percentile(values, 0.95)),
+  };
+}
+
 function parseRaw(raw) {
   const lines = raw.trimEnd().split('\n');
-  if (lines.shift() !== 'timestampMs,elapsedMs,renderMs,tier') {
+  if (lines.shift() !== 'timestampMs,elapsedMs,deliveredFrameMs,renderMs,tier') {
     throw new Error('Unexpected heavy-combat CSV header');
   }
   if (lines.length === 0) throw new Error('Heavy-combat CSV has no samples');
@@ -24,19 +41,20 @@ function parseRaw(raw) {
   let captureEpoch = null;
   return lines.map((line, index) => {
     const fields = line.split(',');
-    if (fields.length !== 4) throw new Error(`Malformed CSV row ${index + 2}`);
+    if (fields.length !== 5) throw new Error(`Malformed CSV row ${index + 2}`);
     const timestampMs = Number(fields[0]);
     const elapsedMs = Number(fields[1]);
-    const renderMs = Number(fields[2]);
-    const tier = fields[3];
-    if (![timestampMs, elapsedMs, renderMs].every(Number.isFinite)) {
+    const deliveredFrameMs = Number(fields[2]);
+    const renderMs = Number(fields[3]);
+    const tier = fields[4];
+    if (![timestampMs, elapsedMs, deliveredFrameMs, renderMs].every(Number.isFinite)) {
       throw new Error(`Non-finite number in CSV row ${index + 2}`);
     }
     if (timestampMs <= previousTimestamp || elapsedMs <= previousElapsed) {
       throw new Error(`Non-monotonic timestamp in CSV row ${index + 2}`);
     }
-    if (elapsedMs < 0 || renderMs < 0) {
-      throw new Error(`Negative duration in CSV row ${index + 2}`);
+    if (elapsedMs < 0 || deliveredFrameMs <= 0 || renderMs < 0) {
+      throw new Error(`Invalid duration in CSV row ${index + 2}`);
     }
     if (!validTiers.has(tier)) throw new Error(`Invalid tier in CSV row ${index + 2}`);
     const rowCaptureEpoch = timestampMs - elapsedMs;
@@ -46,7 +64,7 @@ function parseRaw(raw) {
     }
     previousTimestamp = timestampMs;
     previousElapsed = elapsedMs;
-    return { timestampMs, elapsedMs, renderMs, tier };
+    return { timestampMs, elapsedMs, deliveredFrameMs, renderMs, tier };
   });
 }
 
@@ -84,52 +102,55 @@ function summarizeWindows(rows) {
     if (!buckets.has(index)) buckets.set(index, []);
     buckets.get(index).push(row);
   }
-  return [...buckets.entries()].map(([index, samples]) => {
-    const renderValues = samples.map(sample => sample.renderMs);
-    return {
-      window: index + 1,
-      rangeStartMs: index * windowDurationMs,
-      rangeEndMs: (index + 1) * windowDurationMs,
-      firstElapsedMs: round(samples[0].elapsedMs, 3),
-      lastElapsedMs: round(samples.at(-1).elapsedMs, 3),
-      sampleCount: samples.length,
-      renderDurationMs: {
-        minimum: round(Math.min(...renderValues)),
-        maximum: round(Math.max(...renderValues)),
-        mean: round(renderValues.reduce((sum, value) => sum + value, 0) / samples.length),
-      },
-      tiers: [...new Set(samples.map(sample => sample.tier))],
-    };
-  });
+  return [...buckets.entries()].map(([index, samples]) => ({
+    window: index + 1,
+    rangeStartMs: index * windowDurationMs,
+    rangeEndMs: (index + 1) * windowDurationMs,
+    firstElapsedMs: round(samples[0].elapsedMs, 3),
+    lastElapsedMs: round(samples.at(-1).elapsedMs, 3),
+    sampleCount: samples.length,
+    deliveredFrameMs: statistics(samples.map(sample => sample.deliveredFrameMs)),
+    renderDurationMs: statistics(samples.map(sample => sample.renderMs)),
+    tiers: [...new Set(samples.map(sample => sample.tier))],
+  }));
 }
 
-function buildSummary(raw, rows) {
+function buildSummary(raw, rows, sourceCommit) {
   const first = rows[0];
   const last = rows.at(-1);
-  if (last.elapsedMs < 600_000) {
+  if (last.elapsedMs < minimumDurationMs) {
     throw new Error(`Heavy-combat capture is shorter than ten minutes: ${last.elapsedMs} ms`);
   }
+  const deliveredValues = rows.map(row => row.deliveredFrameMs);
   const renderValues = rows.map(row => row.renderMs);
+  const deliveredStats = statistics(deliveredValues);
+  if (deliveredStats.p95 > maximumPlayableP95Ms) {
+    throw new Error(
+      `Heavy-combat delivered-frame p95 exceeds ${maximumPlayableP95Ms} ms: ${deliveredStats.p95} ms`,
+    );
+  }
   const captureStartEpochMs = first.timestampMs - first.elapsedMs;
   const history = tierHistory(rows);
   const windows = summarizeWindows(rows);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     recordedOn: new Date(captureStartEpochMs).toISOString().slice(0, 10),
-    sourceBaselineCommit: '70d325f334b417f7ada9db866f8a23b3e4bdaa61',
+    sourceBaselineCommit: sourceCommit,
     rawFile: 'heavy-combat-samples.csv',
     rawSha256: createHash('sha256').update(raw).digest('hex'),
     rawBytes: Buffer.byteLength(raw),
+    gate: {
+      minimumDurationMs,
+      maximumPlayableP95Ms,
+      result: 'pass',
+    },
     run: {
       startedAt: new Date(captureStartEpochMs).toISOString(),
       endedAt: new Date(last.timestampMs).toISOString(),
       durationMs: round(last.elapsedMs, 3),
       sampleCount: rows.length,
-      renderDurationMs: {
-        minimum: round(Math.min(...renderValues)),
-        maximum: round(Math.max(...renderValues)),
-        mean: round(renderValues.reduce((sum, value) => sum + value, 0) / rows.length),
-      },
+      deliveredFrameMs: deliveredStats,
+      renderDurationMs: statistics(renderValues),
       windowDurationMs,
       windowCount: windows.length,
       tierAtStart: first.tier,
@@ -138,16 +159,13 @@ function buildSummary(raw, rows) {
     },
     methodology: {
       browser: 'Codex In-app Browser',
-      viewportCssPixels: { width: 1920, height: 1080 },
-      uiBackingPixels: { width: 3840, height: 2160 },
-      devicePixelRatioOverride: 2,
-      measurement: 'performance.now() immediately before and after Renderer.draw(); World.update() and all simulation work were outside the measured interval.',
-      capture: 'Each row was appended after QualityMonitor.sample(renderMs), with the tier selected by that sample. The temporary export work was outside the measured interval.',
-      scenario: 'A temporary production-build harness restaged a representative heavy-combat frame every 100 ms: 18 entities, 48 projectiles, 6 charges, 8 rings, and 120 particles.',
-      simulation: 'The World.update implementation was unchanged. Temporary state restaging ran outside the measured render bracket.',
+      harness: 'Checked-in development-only src/testing/graphics-harness.ts with scene=heavy-combat and record enabled.',
+      measurement: 'Loop supplies requestAnimationFrame delivery intervals to QualityMonitor.sample(deliveredFrameMs). The CSV retains that delivered interval and Renderer.draw duration separately.',
+      pressureScope: 'Delivered-frame time includes simulation, rendering, browser scheduling, and display delivery; it is not a synchronous draw-submit proxy.',
+      scenario: 'The checked-in harness restages 18 entities, 48 projectiles, 6 charges, 8 impact blasts, and 120 particles every 100 ms while normal World.update and Renderer.draw continue.',
       windowing: 'Thirty-second buckets start at capture elapsed time zero. The final partial bucket contains the sample that crossed the ten-minute threshold.',
-      cleanup: 'The capture/export and scenario harnesses were removed before the final production build and commit.',
-      limitation: 'The browser did not expose JavaScript heap telemetry.',
+      productionBoundary: 'This is a development-harness performance capture. Production preview is verified separately without query overrides or the window harness API.',
+      limitation: 'The browser does not expose physical-device thermals or JavaScript heap telemetry.',
     },
     tierHistory: history.segments,
     windows,
@@ -156,13 +174,17 @@ function buildSummary(raw, rows) {
 
 const raw = readFileSync(rawPath, 'utf8');
 const rows = parseRaw(raw);
-const computed = buildSummary(raw, rows);
+const retained = JSON.parse(readFileSync(summaryPath, 'utf8'));
+const sourceArg = process.argv.find(argument => argument.startsWith('--source-commit='));
+const sourceCommit = sourceArg?.slice('--source-commit='.length)
+  || retained.sourceBaselineCommit
+  || 'uncommitted';
+const computed = buildSummary(raw, rows, sourceCommit);
 
 if (process.argv.includes('--write')) {
   writeFileSync(summaryPath, `${JSON.stringify(computed, null, 2)}\n`);
   console.log(`Wrote ${summaryPath}`);
 } else {
-  const retained = JSON.parse(readFileSync(summaryPath, 'utf8'));
   try {
     deepStrictEqual(retained, computed);
   } catch {
@@ -173,9 +195,8 @@ if (process.argv.includes('--write')) {
 
 console.log(
   `Validated ${computed.run.sampleCount} samples over ${computed.run.durationMs} ms: `
-  + `min ${computed.run.renderDurationMs.minimum} ms, `
-  + `max ${computed.run.renderDurationMs.maximum} ms, `
-  + `mean ${computed.run.renderDurationMs.mean} ms, `
+  + `delivered p95 ${computed.run.deliveredFrameMs.p95} ms, `
+  + `render p95 ${computed.run.renderDurationMs.p95} ms, `
   + `${computed.run.windowCount} windows, `
   + `${computed.run.tierTransitions.length} tier transitions`,
 );

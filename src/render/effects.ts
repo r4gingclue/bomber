@@ -5,6 +5,9 @@ export interface EffectBudget {
   debris: number;
   haze: boolean;
   reflections: boolean;
+  animatedClouds: boolean;
+  animatedWater: boolean;
+  softShadows: boolean;
 }
 
 export interface BudgetedParticle {
@@ -15,9 +18,37 @@ export interface BudgetedParticle {
 export type ParticleBudgetClass = 'particle' | 'debris';
 
 export function effectBudget(tier: QualityTier): EffectBudget {
-  if (tier === 'full') return { particles: 320, debris: 80, haze: true, reflections: true };
-  if (tier === 'reduced') return { particles: 180, debris: 40, haze: true, reflections: false };
-  return { particles: 80, debris: 16, haze: false, reflections: false };
+  if (tier === 'full') {
+    return {
+      particles: 320,
+      debris: 80,
+      haze: true,
+      reflections: true,
+      animatedClouds: true,
+      animatedWater: true,
+      softShadows: true,
+    };
+  }
+  if (tier === 'reduced') {
+    return {
+      particles: 180,
+      debris: 40,
+      haze: true,
+      reflections: false,
+      animatedClouds: true,
+      animatedWater: true,
+      softShadows: false,
+    };
+  }
+  return {
+    particles: 80,
+    debris: 16,
+    haze: false,
+    reflections: false,
+    animatedClouds: false,
+    animatedWater: false,
+    softShadows: false,
+  };
 }
 
 export function particleBudgetClass(particle: BudgetedParticle): ParticleBudgetClass {
@@ -25,7 +56,7 @@ export function particleBudgetClass(particle: BudgetedParticle): ParticleBudgetC
   return isExplosionShard ? 'debris' : 'particle';
 }
 
-export function budgetedParticlesNewestFirst<T extends BudgetedParticle>(
+export function budgetedParticlesOldestFirst<T extends BudgetedParticle>(
   particles: readonly T[],
   tier: QualityTier,
 ): T[] {
@@ -46,5 +77,5 @@ export function budgetedParticlesNewestFirst<T extends BudgetedParticle>(
     selected.push(particle);
   }
 
-  return selected;
+  return selected.reverse();
 }

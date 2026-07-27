@@ -12,12 +12,12 @@
       "pack": "Doomsday Tiles Rural.zip",
       "source": "Doomsday Tiles Rural/Building10_1.png",
       "transform": "repainted seamless plaster/stone swatch; no complete building retained"
-    },
+    }
+  ],
+  "excludedPacks": [
     {
-      "output": "public/assets/graphics/scenery/desert-stone.png",
       "pack": "Other Worlds Sands Tiles.zip",
-      "source": "Other Worlds Sands Tiles/Arch1_1.png",
-      "transform": "repainted seamless desert stone swatch; no complete arch retained"
+      "reason": "The archive contains no README, license, or terms file; the previous derivative was replaced with original project-generated desert-stone.png."
     }
   ]
 }

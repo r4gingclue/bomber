@@ -15,3 +15,22 @@ export function screenCanvasSize(width: number, height: number, devicePixelRatio
     backingHeight: Math.round(height * pixelRatio),
   };
 }
+
+const normalizedPixelRatio = (value: number): number =>
+  Math.max(1, Number.isFinite(value) ? value : 1);
+
+/** Detects display-scale changes even when the CSS viewport did not resize. */
+export class DevicePixelRatioMonitor {
+  private current: number;
+
+  constructor(initial: number) {
+    this.current = normalizedPixelRatio(initial);
+  }
+
+  changed(next: number): boolean {
+    const normalized = normalizedPixelRatio(next);
+    if (normalized === this.current) return false;
+    this.current = normalized;
+    return true;
+  }
+}

@@ -3,15 +3,35 @@ import { clientToWorld, fitViewport, worldToRender } from './viewport';
 
 describe('fitViewport', () => {
   it('contains 16:9 without cropping a wide viewport', () => {
-    expect(fitViewport(1200, 600, { top: 0, right: 0, bottom: 0, left: 0 }))
-      .toEqual({ x: 67, y: 0, width: 1067, height: 600, scale: 600 / 540 });
+    const v = fitViewport(1200, 600, { top: 0, right: 0, bottom: 0, left: 0 });
+    expect(v.x).toBeCloseTo(200 / 3);
+    expect(v.y).toBe(0);
+    expect(v.width).toBeCloseTo(3200 / 3);
+    expect(v.height).toBe(600);
+    expect(v.scale).toBeCloseTo(600 / 540);
   });
   it('contains 16:9 inside safe-area insets', () => {
     const v = fitViewport(390, 844, { top: 47, right: 0, bottom: 34, left: 0 });
     expect(v.x).toBe(0);
     expect(v.width).toBe(390);
-    expect(v.height).toBe(219);
-    expect(v.y).toBe(319);
+    expect(v.height).toBeCloseTo(219.375);
+    expect(v.y).toBeCloseTo(318.8125);
+  });
+  it('derives the unconstrained dimension to retain an exact 16:9 ratio', () => {
+    for (const [width, height] of [[1366, 768], [390, 844], [844, 390]]) {
+      const v = fitViewport(width, height, { top: 0, right: 0, bottom: 0, left: 0 });
+      expect(v.width / v.height).toBeCloseTo(16 / 9, 12);
+    }
+  });
+  it('stays inside fractional safe-area bounds without rounding outward', () => {
+    const inset = { top: 1.25, right: 47.4, bottom: 2.75, left: 46.6 };
+    const v = fitViewport(844, 390, inset);
+
+    expect(v.x).toBeGreaterThanOrEqual(inset.left);
+    expect(v.y).toBeGreaterThanOrEqual(inset.top);
+    expect(v.x + v.width).toBeLessThanOrEqual(844 - inset.right);
+    expect(v.y + v.height).toBeLessThanOrEqual(390 - inset.bottom);
+    expect(v.width / v.height).toBeCloseTo(16 / 9, 12);
   });
 });
 

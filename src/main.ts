@@ -6,7 +6,6 @@ import { mulberry32 } from './core/rng';
 import { World } from './game/world';
 import { StateMachine } from './game/state';
 import { drawCards, type UpgradeCard } from './game/upgrades';
-import { makeSheet } from './render/sprites';
 import { Renderer } from './render/renderer';
 import { aimFromStick } from './game/aim';
 import { clientToWorld, fitViewport, type Insets } from './render/viewport';
@@ -14,8 +13,14 @@ import { GRAPHICS_MANIFEST, loadAssets } from './render/assets';
 import { renderFatalBootError } from './render/fatal';
 import { uiLayout, type UiLayout } from './render/ui-layout';
 import { reducedMotionFlag } from './render/motion';
-import { screenCanvasSize } from './render/screen-canvas';
+import { DevicePixelRatioMonitor, screenCanvasSize } from './render/screen-canvas';
 import { QualityMonitor } from './render/quality';
+import type {
+  GraphicsCapture,
+  GraphicsHarnessOptions,
+  GraphicsHarnessScene,
+} from './testing/graphics-harness';
+import type { HelicopterPose } from './render/helicopter';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -26,23 +31,30 @@ const uiCtx = uiCanvas.getContext('2d')!;
 ctx.scale(RENDER_SCALE, RENDER_SCALE);
 
 function safeInsets(): Insets {
+  if (harness.enabled && harness.safeInsets) return harness.safeInsets;
   const css = getComputedStyle(document.documentElement);
   const n = (name: string) => Number.parseFloat(css.getPropertyValue(name)) || 0;
   return { top: n('--sat'), right: n('--sar'), bottom: n('--sab'), left: n('--sal') };
 }
 
+let harness: GraphicsHarnessOptions = {
+  enabled: false,
+  touchUi: false,
+  reducedMotion: false,
+  damageFlash: false,
+  pixelRatio: 0,
+  freeze: false,
+  record: false,
+  snapshot: false,
+};
+const effectivePixelRatio = () => harness.pixelRatio || window.devicePixelRatio || 1;
 let viewport = fitViewport(innerWidth, innerHeight, safeInsets());
-let screenLayout: UiLayout = uiLayout(innerWidth, innerHeight, safeInsets(), true);
+let screenLayout: UiLayout = uiLayout(innerWidth, innerHeight, safeInsets(), true, viewport);
 let input: Input | null = null;
-const debugParams = (import.meta as { env?: { DEV?: boolean } }).env?.DEV
-  ? new URLSearchParams(window.location.search)
-  : null;
-const debugTouchUi = debugParams?.has('touch-ui') ?? false;
-const debugReducedMotion = debugParams?.has('reduced-motion') ?? false;
-const debugDamageFlash = debugParams?.has('damage-flash') ?? false;
-const debugPixelRatio = Number(debugParams?.get('dpr')) || 0;
+const pixelRatioMonitor = new DevicePixelRatioMonitor(effectivePixelRatio());
 function resize(): void {
-  viewport = fitViewport(innerWidth, innerHeight, safeInsets());
+  const insets = safeInsets();
+  viewport = fitViewport(innerWidth, innerHeight, insets);
   Object.assign(canvas.style, {
     position: 'fixed',
     left: `${viewport.x}px`,
@@ -50,7 +62,8 @@ function resize(): void {
     width: `${viewport.width}px`,
     height: `${viewport.height}px`,
   });
-  const pixelRatio = debugPixelRatio || window.devicePixelRatio || 1;
+  const pixelRatio = effectivePixelRatio();
+  pixelRatioMonitor.changed(pixelRatio);
   const uiSize = screenCanvasSize(innerWidth, innerHeight, pixelRatio);
   uiCanvas.width = uiSize.backingWidth;
   uiCanvas.height = uiSize.backingHeight;
@@ -59,19 +72,51 @@ function resize(): void {
     height: `${uiSize.cssHeight}px`,
   });
   uiCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  screenLayout = uiLayout(innerWidth, innerHeight, safeInsets(), true);
+  screenLayout = uiLayout(innerWidth, innerHeight, insets, true, viewport);
   input?.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
+document.addEventListener('fullscreenchange', resize);
 resize();
 
 async function boot(): Promise<void> {
+  let capture: GraphicsCapture | null = null;
+  let captureOutput: HTMLTextAreaElement | null = null;
+  let snapshotOutput: HTMLTextAreaElement | null = null;
+  let captureComplete = false;
+  let captureSnapshotHarness:
+    ((
+      gameCanvas: HTMLCanvasElement,
+      uiCanvas: HTMLCanvasElement,
+      width: number,
+      height: number,
+    ) => string) | null = null;
+  let splitSnapshotHarness: ((snapshot: string) => string[]) | null = null;
+  let stageHeavyCombatHarness: ((world: World) => void) | null = null;
+  let stageVisualSceneHarness:
+    ((
+      world: World,
+      scene: Exclude<GraphicsHarnessScene, 'heavy-combat'>,
+      pose?: HelicopterPose,
+      facing?: 1 | -1,
+    ) => void) | null = null;
+  if (import.meta.env.DEV) {
+    const graphicsHarness = await import('./testing/graphics-harness');
+    harness = graphicsHarness.readGraphicsHarnessOptions(window.location.search, true);
+    capture = new graphicsHarness.GraphicsCapture();
+    captureSnapshotHarness = graphicsHarness.captureViewportFrame;
+    splitSnapshotHarness = graphicsHarness.splitGraphicsSnapshot;
+    stageHeavyCombatHarness = graphicsHarness.stageHeavyCombat;
+    stageVisualSceneHarness = graphicsHarness.stageVisualScene;
+    resize();
+  }
   const assets = await loadAssets(GRAPHICS_MANIFEST);
   const activeInput = new Input();
   input = activeInput;
   const audio = new AudioSys();
   const state = new StateMachine();
-  const renderer = new Renderer(ctx, uiCtx, makeSheet(), assets);
+  const renderer = new Renderer(ctx, uiCtx, assets);
   const motion = reducedMotionFlag(window.matchMedia('(prefers-reduced-motion: reduce)'));
   const quality = new QualityMonitor();
 
@@ -79,6 +124,7 @@ async function boot(): Promise<void> {
   let cards: UpgradeCard[] = [];
   let elapsed = 0;
   let introT = 0;
+  let harnessRestage = 0;
 
   activeInput.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
   activeInput.attach(uiCanvas);
@@ -105,10 +151,6 @@ async function boot(): Promise<void> {
     world.startWave();
     state.start();
     audio.handle('ui');
-    // dev-only hook so playtests can inspect and drive game state
-    if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) {
-      (window as unknown as { __world: World }).__world = world;
-    }
   }
 
   function pickCard(i: number): void {
@@ -159,6 +201,14 @@ async function boot(): Promise<void> {
     }
     // playing
     const intent = activeInput.poll();
+    if (harness.scene && harness.freeze) return;
+    if (harness.scene === 'heavy-combat') {
+      harnessRestage -= dt;
+      if (harnessRestage <= 0) {
+        stageHeavyCombatHarness?.(world);
+        harnessRestage = 0.1;
+      }
+    }
     const stickDir = activeInput.aimStickDir();
     if (stickDir) {
       intent.aim = aimFromStick(world.player.x, world.player.y, stickDir.dx, stickDir.dy);
@@ -180,29 +230,127 @@ async function boot(): Promise<void> {
     }
   }
 
+  if (harness.enabled) {
+    const stage = (scene: NonNullable<typeof harness.scene>) => {
+      if (scene === 'heavy-combat') stageHeavyCombatHarness?.(world);
+      else stageVisualSceneHarness?.(world, scene, harness.playerPose, harness.playerFacing);
+    };
+    (window as unknown as {
+      __seaBomberHarness: {
+        options: typeof harness;
+        getWorld: () => World;
+        getTier: () => typeof quality.tier;
+        capture: GraphicsCapture;
+        exportCsv: () => string;
+        stage: typeof stage;
+      };
+    }).__seaBomberHarness = {
+      options: harness,
+      getWorld: () => world,
+      getTier: () => quality.tier,
+      capture: capture!,
+      exportCsv: () => capture!.toCsv(),
+      stage,
+    };
+    document.documentElement.dataset.graphicsHarnessReady = '1';
+    if (harness.record) {
+      captureOutput = document.createElement('textarea');
+      captureOutput.id = 'sea-bomber-capture-csv';
+      captureOutput.hidden = true;
+      captureOutput.dataset.ready = '0';
+      captureOutput.dataset.elapsedMs = '0';
+      document.body.append(captureOutput);
+    }
+    if (harness.snapshot) {
+      snapshotOutput = document.createElement('textarea');
+      snapshotOutput.id = 'sea-bomber-snapshot-data';
+      snapshotOutput.hidden = true;
+      snapshotOutput.dataset.ready = '0';
+      document.body.append(snapshotOutput);
+    }
+  }
+
+  if (harness.scene) {
+    startRun();
+    if (harness.scene === 'heavy-combat') stageHeavyCombatHarness?.(world);
+    else stageVisualSceneHarness?.(
+      world,
+      harness.scene,
+      harness.playerPose,
+      harness.playerFacing,
+    );
+  }
+
   const loop = new Loop(
     dt => update(dt),
-    () => {
+    (_alpha, deliveredFrameMs) => {
+      if (pixelRatioMonitor.changed(effectivePixelRatio())) resize();
+      const renderTier = harness.qualityTier ?? quality.tier;
       const renderStart = performance.now();
       renderer.draw(
         world,
         state.phase,
         cards,
         elapsed,
-        activeInput.touchSeen || debugTouchUi,
-        quality.tier,
+        activeInput.touchSeen || harness.touchUi,
+        renderTier,
         screenLayout,
-        motion.value || debugReducedMotion,
-        debugDamageFlash,
+        motion.value || harness.reducedMotion,
+        harness.damageFlash,
       );
-      quality.sample(performance.now() - renderStart);
+      const renderEnd = performance.now();
+      if (
+        snapshotOutput?.dataset.ready === '0'
+        && captureSnapshotHarness
+        && splitSnapshotHarness
+      ) {
+        const snapshot = captureSnapshotHarness(
+          canvas,
+          uiCanvas,
+          innerWidth,
+          innerHeight,
+        );
+        const chunks = splitSnapshotHarness(snapshot);
+        for (let index = 0; index < chunks.length; index++) {
+          const chunk = document.createElement('textarea');
+          chunk.id = `sea-bomber-snapshot-chunk-${index}`;
+          chunk.hidden = true;
+          chunk.value = chunks[index];
+          document.body.append(chunk);
+        }
+        snapshotOutput.dataset.chunks = String(chunks.length);
+        snapshotOutput.dataset.ready = '1';
+      }
+      quality.sample(deliveredFrameMs);
+      if (harness.record && capture) {
+        capture.record(
+          performance.timeOrigin + renderEnd,
+          deliveredFrameMs,
+          renderEnd - renderStart,
+          renderTier,
+        );
+        if (captureOutput) {
+          captureOutput.dataset.elapsedMs = capture.elapsedMs().toFixed(3);
+          if (!captureComplete && capture.hasDuration(600_000)) {
+            captureComplete = true;
+            captureOutput.value = capture.toCsv();
+            captureOutput.dataset.ready = '1';
+          }
+        }
+      }
     },
   );
   loop.start();
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) loop.stop();
-    else loop.start();
+    if (document.hidden) {
+      activeInput.resetTransient();
+      quality.reset();
+      loop.stop();
+    } else {
+      resize();
+      loop.start();
+    }
   });
 }
 

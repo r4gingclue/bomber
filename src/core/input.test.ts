@@ -182,3 +182,60 @@ describe('missile input', () => {
     expect(input.poll().fire).toBe(false);
   });
 });
+
+it('clears every held and queued input state on blur', () => {
+  const { input, canvas, keyboard } = setupInput();
+  const move = touchControls().move;
+  const fire = touchControls().fire;
+
+  keyboard.dispatchEvent(event('keydown', { code: 'KeyF', repeat: false }));
+  keyboard.dispatchEvent(event('keydown', { code: 'KeyE', repeat: false }));
+  keyboard.dispatchEvent(event('keydown', { code: 'Space', repeat: false }));
+  keyboard.dispatchEvent(event('keydown', { code: 'Enter', repeat: false }));
+  keyboard.dispatchEvent(event('keydown', { code: 'Digit2', repeat: false }));
+  canvas.dispatchEvent(event('pointerdown', {
+    pointerType: 'mouse',
+    pointerId: 1,
+    clientX: 10,
+    clientY: 10,
+  }));
+  canvas.dispatchEvent(event('pointermove', {
+    pointerType: 'mouse',
+    pointerId: 1,
+    clientX: 20,
+    clientY: 20,
+  }));
+  canvas.dispatchEvent(event('pointerdown', {
+    pointerType: 'touch',
+    pointerId: 2,
+    clientX: move.x,
+    clientY: move.y,
+  }));
+  canvas.dispatchEvent(event('pointermove', {
+    pointerType: 'touch',
+    pointerId: 2,
+    clientX: move.x + 40,
+    clientY: move.y,
+  }));
+  canvas.dispatchEvent(event('pointerdown', {
+    pointerType: 'touch',
+    pointerId: 3,
+    clientX: fire.x,
+    clientY: fire.y,
+  }));
+
+  keyboard.dispatchEvent(event('blur'));
+  now = 1000;
+
+  expect(input.poll()).toEqual({
+    move: { x: 0, y: 0 },
+    drop: false,
+    fire: false,
+    missile: false,
+    aim: null,
+  });
+  expect(input.aimCanvasPoint()).toBeNull();
+  expect(input.aimStickDir()).toBeNull();
+  expect(input.consumeConfirm()).toBe(false);
+  expect(input.consumeCardKey()).toBe(-1);
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { World, scoreBlast, BASE_SCORE } from './world';
+import { World, scoreBlast, BASE_SCORE, impactParticleColor } from './world';
 import { WATERLINE } from './consts';
 import { mulberry32 } from '../core/rng';
 import { generateTerrain, isWater } from './terrain';
@@ -17,6 +17,15 @@ describe('scoreBlast', () => {
     ]);
     expect(two).toBe(one * 2 * 2); // (sum of 2 kills) × 2 multiplier
   });
+});
+
+it('chooses impact visuals from terrain water state rather than impact height', () => {
+  const coast = generateTerrain('coast', mulberry32(2));
+  const waterX = coast.water.findIndex(Boolean) * 8 + 4;
+  const landX = coast.water.findIndex(value => !value) * 8 + 4;
+
+  expect(impactParticleColor(coast, waterX)).toBe('#9fd8ff');
+  expect(impactParticleColor(coast, landX)).toBe('#ffb347');
 });
 
 describe('World', () => {

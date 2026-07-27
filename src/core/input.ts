@@ -73,7 +73,7 @@ export class Input {
       this.onGesture?.();
     });
     window.addEventListener('keyup', e => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => this.resetTransient());
 
     el.addEventListener('pointerdown', e => {
       this.onGesture?.();
@@ -132,6 +132,21 @@ export class Input {
 
   setTouchControls(controls: TouchControls): void {
     this.controls = controls;
+  }
+
+  /** Clears held and queued intent when the page loses interaction ownership. */
+  resetTransient(): void {
+    this.keys.clear();
+    this.dropQueued = false;
+    this.missileQueued = false;
+    this.confirmQueued = false;
+    this.cardKeyQueued = -1;
+    this.mouseFire = false;
+    this.touchFireQueued = false;
+    this.firePointers.clear();
+    this.stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
+    this.aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
+    this.mouseAim = null;
   }
 
   poll(): Intent {

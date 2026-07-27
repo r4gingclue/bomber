@@ -32,12 +32,14 @@ screens use letterboxing, while the screen-space HUD and touch controls are laid
 out independently at the browser's device-pixel ratio and respect safe-area
 insets.
 
-Graphics quality starts at `full` and is selected from render duration only.
-Sustained expensive draws step through `reduced` to `minimum`; sustained fast
-draws recover one tier at a time. Lower tiers trim particles, debris,
-reflections, and atmosphere without removing enemies, projectiles, aiming cues,
-hit feedback, terrain, or the HUD. The simulation update is not included in the
-quality sample and is not changed by the selected tier.
+Graphics quality starts at `full` and is selected from a rolling window of
+delivered animation-frame intervals. That pressure signal includes simulation,
+rendering, browser scheduling, and display delivery instead of measuring only
+the synchronous canvas draw submission. Sustained pressure steps through
+`reduced` to `minimum`; a longer fast-frame hysteresis recovers one tier at a
+time. Lower tiers trim particles, debris, reflections, atmosphere, animated
+water/cloud work, and soft shadow filtering without removing enemies,
+projectiles, aiming cues, hit feedback, terrain, or the HUD.
 
 See [the painted-graphics playtest](docs/testing/painted-graphics-playtest.md)
 for the release matrix and [the asset workflow](docs/assets/README.md) before

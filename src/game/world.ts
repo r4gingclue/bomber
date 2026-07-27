@@ -41,6 +41,10 @@ export function scoreBlast(
   return pts * Math.max(1, killed.length);
 }
 
+export function impactParticleColor(terrain: Terrain, x: number): '#9fd8ff' | '#ffb347' {
+  return isWater(terrain, x) ? '#9fd8ff' : '#ffb347';
+}
+
 export class World {
   player: Player = { x: VIEW_W / 2, y: 60, vx: 0, vy: 0, hp: 100, iframes: 0, facing: 1, fireCd: 0, pdCd: 0, turretAngle: 0, muzzleT: 0 };
   stats: PlayerStats = defaultStats();
@@ -662,7 +666,7 @@ export class World {
         id: this.nextId++, x, y,
         vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
         life: 0.4 + this.rng() * 0.4, maxLife: 0.8,
-        color: y > WATERLINE ? '#9fd8ff' : '#ffb347', size: 2,
+        color: impactParticleColor(this.terrain, x), size: 2,
       });
     }
   }

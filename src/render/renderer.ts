@@ -3,14 +3,13 @@ import type { World } from '../game/world';
 import type { Phase } from '../game/state';
 import type { UpgradeCard } from '../game/upgrades';
 import { uiLayout, type UiLayout } from './ui-layout';
-import type { Sheet } from './sprites';
 import { PALETTES, actTitle } from '../game/biomes';
-import { COL_W, COLS } from '../game/terrain';
+import { COL_W, COLS, isWater } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
 import type { LoadedAssets, LoadedFrameAsset } from './assets';
 import { helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
 import { sceneryForTerrain, type SceneryProp } from './scenery';
-import { budgetedParticlesNewestFirst, effectBudget } from './effects';
+import { budgetedParticlesOldestFirst, effectBudget } from './effects';
 import type { QualityTier } from './quality';
 import { damageFlashMode } from './motion';
 
@@ -55,10 +54,11 @@ export class Renderer {
   constructor(
     private ctx: CanvasRenderingContext2D,
     private uiCtx: CanvasRenderingContext2D,
-    private sheet: Sheet,
     private assets: LoadedAssets,
   ) {
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    uiCtx.imageSmoothingEnabled = true;
   }
 
   draw(
@@ -73,16 +73,16 @@ export class Renderer {
     debugDamageFlash = false,
   ): void {
     const { ctx } = this;
-    const tier = this.currentTier(qualityTier);
+    const tier = qualityTier;
     const shx = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const shy = world.shake ? (Math.random() * 2 - 1) * world.shake : 0;
     const cam = world.camX + shx;
     const oy = shy; // vertical shake offset for world-space drawing
-    this.drawBackground(world, cam, oy, t);
+    this.drawBackground(world, cam, oy, t, tier);
     this.drawTerrain(world, cam, oy, t);
     this.drawScenery(world, cam, oy);
-    this.drawWater(world, cam, oy, t);
-    this.drawShadows(world, cam, oy);
+    this.drawWater(world, cam, oy, t, tier);
+    this.drawShadows(world, cam, oy, tier);
 
     for (const s of world.subs) {
       const bob = s.kind === 'mine' ? Math.sin(t * 2 + s.id) * 1.5 : 0;
@@ -114,28 +114,15 @@ export class Renderer {
     const pl = world.player;
     if (pl.iframes <= 0 || Math.floor(t * 12) % 2 === 0) {
       const pose = helicopterPose(pl.vx, pl.vy, pl.facing);
-      const frameX = HELICOPTER_POSES.indexOf(pose) * 192;
+      const playerAsset = this.assets.player.heli;
+      const frame = playerAsset.frames[HELICOPTER_POSES.indexOf(pose)];
       this.drawPlayerRotor(pl.x, pl.y, cam, oy, t);
       ctx.save();
       ctx.translate(Math.round(pl.x - cam), Math.round(pl.y + oy));
       ctx.scale(pl.facing, 1);
-      ctx.drawImage(this.assets.player.heli, frameX, 0, 192, 96, -48, -24, 96, 48);
+      ctx.drawImage(playerAsset.image, frame.x, frame.y, frame.w, frame.h, -48, -24, 96, 48);
       ctx.restore();
-      // chin turret (aims independently of body flip)
-      const tf = this.sheet.frames.turret;
-      ctx.save();
-      ctx.translate(Math.round(pl.x - cam), Math.round(pl.y + oy + 4));
-      ctx.rotate(pl.turretAngle);
-      ctx.drawImage(this.sheet.canvas, tf.x, tf.y, tf.w, tf.h, -2, -2, tf.w, tf.h);
-      if (pl.muzzleT > 0) {
-        ctx.fillStyle = '#fff6c0';
-        ctx.fillRect(6, -2, 4, 4);
-        ctx.fillStyle = 'rgba(255,180,96,0.45)';
-        ctx.beginPath();
-        ctx.arc(8, 0, 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
+      this.drawPlayerTurret(pl.x, pl.y, pl.turretAngle, pl.muzzleT, cam, oy);
     }
     this.drawParticles(world, cam, oy, tier);
     this.drawGrading(world, tier);
@@ -147,8 +134,15 @@ export class Renderer {
     if (phase === 'gameover') this.gameover(world);
   }
 
-  private drawBackground(world: World, cam: number, oy: number, t: number): void {
+  private drawBackground(
+    world: World,
+    cam: number,
+    oy: number,
+    t: number,
+    tier: QualityTier,
+  ): void {
     const { ctx } = this;
+    const budget = effectBudget(tier);
     const pal = PALETTES[world.terrain.biome];
     const sky = ctx.createLinearGradient(0, 0, 0, WATERLINE);
     sky.addColorStop(0, pal.skyTop);
@@ -157,9 +151,10 @@ export class Renderer {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    for (const cl of CLOUDS_FAR) {
+    const farClouds = budget.animatedClouds ? CLOUDS_FAR : CLOUDS_FAR.slice(0, 4);
+    for (const cl of farClouds) {
       const x = wrapX(cl.x, cam, 0.15);
-      const drift = Math.sin(t * 0.08 + cl.x) * 0.4;
+      const drift = budget.animatedClouds ? Math.sin(t * 0.08 + cl.x) * 0.4 : 0;
       ctx.fillRect(x, cl.y + oy * 0.3 + drift, cl.w, 4);
       ctx.fillRect(x + 8, cl.y - 2 + oy * 0.3 + drift, cl.w - 16, 2);
     }
@@ -167,12 +162,14 @@ export class Renderer {
     ctx.fillStyle = 'rgba(230,240,255,0.25)';
     ctx.fillRect(0, WATERLINE - 22 + oy, VIEW_W, 22);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    for (const cl of CLOUDS_NEAR) {
-      const x = wrapX(cl.x, cam, 0.4);
-      const drift = Math.sin(t * 0.12 + cl.y) * 0.6;
-      ctx.fillRect(x, cl.y + oy * 0.6 + drift, cl.w, 5);
-      ctx.fillRect(x + 6, cl.y - 3 + oy * 0.6 + drift, cl.w - 12, 3);
+    if (budget.animatedClouds) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      for (const cl of CLOUDS_NEAR) {
+        const x = wrapX(cl.x, cam, 0.4);
+        const drift = Math.sin(t * 0.12 + cl.y) * 0.6;
+        ctx.fillRect(x, cl.y + oy * 0.6 + drift, cl.w, 5);
+        ctx.fillRect(x + 6, cl.y - 3 + oy * 0.6 + drift, cl.w - 12, 3);
+      }
     }
 
     if (world.terrain.biome === 'inland') {
@@ -246,13 +243,21 @@ export class Renderer {
     }
   }
 
-  private drawWater(world: World, cam: number, oy: number, t: number): void {
+  private drawWater(
+    world: World,
+    cam: number,
+    oy: number,
+    t: number,
+    tier: QualityTier,
+  ): void {
     const { ctx } = this;
-    if (world.terrain.biome !== 'inland') {
+    const budget = effectBudget(tier);
+    const waterTime = budget.animatedWater ? t : 0;
+    if (world.terrain.biome !== 'inland' && budget.reflections) {
       const midY = (WATERLINE + VIEW_H) / 2;
       ctx.fillStyle = 'rgba(159,216,255,0.06)';
       for (let i = 0; i < 4; i++) {
-        const rx = wrapX(i * 130, cam, 0.6) + Math.sin(t * 0.3 + i) * 8;
+        const rx = wrapX(i * 130, cam, 0.6) + Math.sin(waterTime * 0.3 + i) * 8;
         ctx.beginPath();
         ctx.moveTo(rx, WATERLINE + oy);
         ctx.lineTo(rx + 26, WATERLINE + oy);
@@ -276,29 +281,21 @@ export class Renderer {
       ctx.fillRect(glx - 60, WATERLINE - 4 + oy, 120, 24);
     }
 
-    for (let x = 0; x < VIEW_W; x += 4) {
+    const step = budget.animatedWater ? 4 : 8;
+    for (let x = 0; x < VIEW_W; x += step) {
       const col = Math.max(0, Math.min(COLS - 1, Math.floor((x + cam) / COL_W)));
       if (!world.terrain.water[col]) continue;
-      const h1 = 1 + Math.round(Math.sin((x + cam) * 0.08 + t * 2.5) + 1);
+      const h1 = 1 + Math.round(Math.sin((x + cam) * 0.08 + waterTime * 2.5) + 1);
       ctx.fillStyle = '#bfe3ff';
-      ctx.fillRect(x, WATERLINE - h1 + oy, 4, h1);
-      const h2 = Math.round(Math.sin((x + cam) * 0.15 - t * 1.8) + 1);
+      ctx.fillRect(x, WATERLINE - h1 + oy, step, h1);
+      const h2 = Math.round(Math.sin((x + cam) * 0.15 - waterTime * 1.8) + 1);
       if (h2 > 1) {
         ctx.fillStyle = '#f0faff';
-        ctx.fillRect(x + 1, WATERLINE - h1 - 1 + oy, 2, 1);
+        ctx.fillRect(x + 1, WATERLINE - h1 - 1 + oy, Math.max(2, step - 2), 1);
       }
       ctx.fillStyle = '#7db8e8';
-      ctx.fillRect(x, WATERLINE + oy, 4, 1 + h2);
+      ctx.fillRect(x, WATERLINE + oy, step, 1 + h2);
     }
-  }
-
-  private currentTier(qualityTier: QualityTier): QualityTier {
-    const dev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV;
-    if (dev && typeof window !== 'undefined') {
-      const override = (window as Window & { __renderTierOverride?: QualityTier }).__renderTierOverride;
-      if (override) return override;
-    }
-    return qualityTier;
   }
 
   private unitAsset(kind: string): LoadedFrameAsset {
@@ -321,13 +318,12 @@ export class Renderer {
     y: number,
     cam: number,
     oy: number,
-    opts: { flip?: boolean; rot?: number; alpha?: number; scale?: number } = {},
+    opts: { flip?: boolean; rot?: number; alpha?: number } = {},
   ): void {
     const { ctx } = this;
     const { frame, image } = asset;
-    const scale = opts.scale ?? 0.5;
-    const w = frame.w * scale;
-    const h = frame.h * scale;
+    const w = frame.drawW;
+    const h = frame.drawH;
     ctx.save();
     ctx.translate(Math.round(x - cam), Math.round(y + oy));
     if (opts.flip) ctx.scale(-1, 1);
@@ -345,15 +341,16 @@ export class Renderer {
     return RENDER_MAX_HP[kind];
   }
 
-  private drawShadows(world: World, cam: number, oy: number): void {
-    this.drawAircraftShadow(world, world.player.x, world.player.y, cam, oy);
+  private drawShadows(world: World, cam: number, oy: number, tier: QualityTier): void {
+    const soft = effectBudget(tier).softShadows;
+    this.drawAircraftShadow(world, world.player.x, world.player.y, cam, oy, soft);
     for (const s of world.subs) {
       if (!AIR.has(s.kind)) continue;
-      this.drawAircraftShadow(world, s.x, s.y + 4, cam, oy);
+      this.drawAircraftShadow(world, s.x, s.y + 4, cam, oy, soft);
     }
     for (const p of world.shots) {
       if (p.ptype !== 'sam' && p.ptype !== 'pmissile') continue;
-      this.drawProjectileShadow(world, p.x, p.y, cam, oy);
+      this.drawProjectileShadow(world, p.x, p.y, cam, oy, soft);
     }
   }
 
@@ -384,46 +381,134 @@ export class Renderer {
       this.drawAtlas(this.weaponAsset(p.ptype), p.x, p.y, cam, oy, { rot });
     }
     for (const r of world.rings) {
-      const a = 1 - r.age / 0.3;
-      const radius = 6 + r.age * 90;
-      ctx.save();
-      ctx.globalAlpha = a * 0.28;
-      ctx.fillStyle = '#ffc889';
-      ctx.beginPath();
-      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), radius * 0.32, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      ctx.strokeStyle = `rgba(255,240,200,${(a * 0.8).toFixed(2)})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = `rgba(255,174,118,${(a * 0.45).toFixed(2)})`;
-      ctx.beginPath();
-      ctx.arc(Math.round(r.x - cam), Math.round(r.y + oy), Math.max(2, radius * 0.58), 0, Math.PI * 2);
-      ctx.stroke();
+      this.drawImpactBlast(world, r.x, r.y, r.age, cam, oy);
     }
     ctx.lineWidth = 1;
+  }
+
+  private drawImpactBlast(
+    world: World,
+    x: number,
+    y: number,
+    age: number,
+    cam: number,
+    oy: number,
+  ): void {
+    const { ctx } = this;
+    const life = Math.max(0, 1 - age / 0.3);
+    const radius = 5 + age * 88;
+    const sx = Math.round(x - cam);
+    const sy = Math.round(y + oy);
+    const water = isWater(world.terrain, x);
+    ctx.save();
+    ctx.globalAlpha = life;
+    if (water) {
+      const plume = 5 + life * 13;
+      const spray = ctx.createLinearGradient(sx, sy - plume, sx, sy + 3);
+      spray.addColorStop(0, 'rgba(244,251,255,0)');
+      spray.addColorStop(0.45, 'rgba(220,244,255,0.8)');
+      spray.addColorStop(1, 'rgba(104,181,226,0.18)');
+      ctx.fillStyle = spray;
+      ctx.beginPath();
+      ctx.moveTo(sx - radius * 0.16, sy + 2);
+      ctx.quadraticCurveTo(sx - radius * 0.05, sy - plume, sx, sy - plume * 1.15);
+      ctx.quadraticCurveTo(sx + radius * 0.07, sy - plume, sx + radius * 0.18, sy + 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = `rgba(222,246,255,${(life * 0.8).toFixed(2)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy + 1, radius, Math.max(2, radius * 0.22), 0, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(112,199,239,${(life * 0.5).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy + 2, radius * 0.62, Math.max(1.5, radius * 0.14), 0, 0.1, Math.PI * 0.92);
+      ctx.stroke();
+    } else {
+      const core = ctx.createRadialGradient(sx - 2, sy - 2, 0, sx, sy, Math.max(4, radius * 0.7));
+      core.addColorStop(0, 'rgba(255,255,218,0.95)');
+      core.addColorStop(0.25, 'rgba(255,190,82,0.9)');
+      core.addColorStop(0.7, 'rgba(216,77,32,0.45)');
+      core.addColorStop(1, 'rgba(91,49,32,0)');
+      ctx.fillStyle = core;
+      for (let lobe = 0; lobe < 4; lobe++) {
+        const angle = lobe * Math.PI * 0.5 + age * 3;
+        ctx.beginPath();
+        ctx.ellipse(
+          sx + Math.cos(angle) * radius * 0.18,
+          sy + Math.sin(angle) * radius * 0.12,
+          Math.max(3, radius * (0.38 + (lobe % 2) * 0.08)),
+          Math.max(2, radius * 0.28),
+          angle * 0.35,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      ctx.strokeStyle = `rgba(218,174,112,${(life * 0.58).toFixed(2)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy + radius * 0.18, radius, Math.max(2, radius * 0.28), 0, Math.PI * 1.08, Math.PI * 1.9);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private drawParticles(world: World, cam: number, oy: number, tier: QualityTier): void {
     const { ctx } = this;
     const budget = effectBudget(tier);
 
-    for (const pt of budgetedParticlesNewestFirst(world.particles, tier)) {
+    for (const pt of budgetedParticlesOldestFirst(world.particles, tier)) {
       const alpha = Math.max(0, pt.life / pt.maxLife);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate(Math.round(pt.x - cam), Math.round(pt.y + oy));
       if (pt.color === '#3a3f46') {
-        ctx.fillStyle = 'rgba(58,63,70,0.86)';
+        const smoke = ctx.createRadialGradient(-1, -1, 0, 0, 0, 4 + pt.size);
+        smoke.addColorStop(0, 'rgba(91,98,106,0.82)');
+        smoke.addColorStop(0.55, 'rgba(58,63,70,0.68)');
+        smoke.addColorStop(1, 'rgba(31,37,43,0)');
+        ctx.fillStyle = smoke;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 3 + pt.size, 2 + pt.size * 0.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 4 + pt.size, 3 + pt.size * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pt.color === '#9fd8ff' || pt.color === '#cfe8ff') {
+        const angle = Math.atan2(pt.vy, pt.vx || 0.001);
+        ctx.rotate(angle);
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 1.2 + pt.size * 0.7, 0.7 + pt.size * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(232,250,255,0.7)';
+        ctx.lineWidth = 0.65;
+        ctx.beginPath();
+        ctx.moveTo(-pt.size * 2.5, 0);
+        ctx.lineTo(pt.size * 0.5, 0);
+        ctx.stroke();
+      } else if (pt.maxLife === 0.8) {
+        const angle = (pt.id % 17) * 0.31;
+        ctx.rotate(angle);
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.moveTo(-pt.size * 1.8, -pt.size * 0.55);
+        ctx.lineTo(pt.size * 1.7, 0);
+        ctx.lineTo(-pt.size * 1.1, pt.size * 0.7);
+        ctx.closePath();
         ctx.fill();
       } else {
-        ctx.fillStyle = pt.color;
-        ctx.rotate((pt.id % 12) * 0.2);
-        ctx.fillRect(-pt.size, -pt.size, pt.size * 2, pt.size * 2);
+        const speed = Math.hypot(pt.vx, pt.vy) || 1;
+        const nx = pt.vx / speed;
+        const ny = pt.vy / speed;
+        ctx.strokeStyle = pt.color;
+        ctx.lineWidth = Math.max(0.8, pt.size * 0.7);
+        ctx.beginPath();
+        ctx.moveTo(-nx * pt.size * 3, -ny * pt.size * 3);
+        ctx.lineTo(nx * pt.size, ny * pt.size);
+        ctx.stroke();
+        ctx.fillStyle = '#fff3be';
+        ctx.beginPath();
+        ctx.arc(nx * pt.size, ny * pt.size, Math.max(0.7, pt.size * 0.45), 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.restore();
     }
@@ -470,7 +555,14 @@ export class Renderer {
     }
   }
 
-  private drawProjectileShadow(world: World, x: number, y: number, cam: number, oy: number): void {
+  private drawProjectileShadow(
+    world: World,
+    x: number,
+    y: number,
+    cam: number,
+    oy: number,
+    soft: boolean,
+  ): void {
     const col = Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)));
     const surfaceY = world.terrain.water[col] ? WATERLINE : this.surfaceYAt(world, x);
     const style = shadowStyle(surfaceY - y);
@@ -478,8 +570,8 @@ export class Renderer {
     ctx.save();
     ctx.translate(Math.round(x - cam), Math.round(surfaceY + oy + 1));
     ctx.scale(style.scale * 0.45, style.scale * 0.45);
-    ctx.filter = `blur(${Math.max(0.4, style.blur * 0.6)}px)`;
-    ctx.fillStyle = `rgba(5, 12, 18, ${style.alpha * 0.8})`;
+    if (soft) ctx.filter = `blur(${Math.max(0.4, style.blur * 0.6)}px)`;
+    ctx.fillStyle = `rgba(5, 12, 18, ${style.alpha * (soft ? 0.8 : 0.55)})`;
     ctx.beginPath();
     ctx.ellipse(0, 0, 8, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -714,12 +806,24 @@ export class Renderer {
   private touchOverlay(layout: UiLayout): void {
     const ctx = this.uiCtx;
     for (const [key, btn] of Object.entries({ move: layout.move, fire: layout.fire, drop: layout.drop }) as ['move' | 'fire' | 'drop', { x: number; y: number; r: number }][]) {
-      ctx.strokeStyle = 'rgba(232,242,255,0.5)';
+      ctx.fillStyle = `rgba(4, 13, 24, ${(layout.controlOpacity * 0.62).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(232,242,255,${layout.controlOpacity.toFixed(2)})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
       ctx.stroke();
-      this.text(key.toUpperCase(), btn.x, btn.y + 6, 14, 'rgba(232,242,255,0.7)', true, ctx);
+      this.text(
+        key.toUpperCase(),
+        btn.x,
+        btn.y + 6,
+        14,
+        `rgba(232,242,255,${Math.min(0.82, layout.controlOpacity + 0.22).toFixed(2)})`,
+        true,
+        ctx,
+      );
     }
   }
 
@@ -784,7 +888,14 @@ export class Renderer {
     return world.terrain.surface[Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)))];
   }
 
-  private drawAircraftShadow(world: World, x: number, y: number, cam: number, oy: number): void {
+  private drawAircraftShadow(
+    world: World,
+    x: number,
+    y: number,
+    cam: number,
+    oy: number,
+    soft: boolean,
+  ): void {
     const col = Math.max(0, Math.min(COLS - 1, Math.floor(x / COL_W)));
     const surfaceY = world.terrain.water[col] ? WATERLINE : this.surfaceYAt(world, x);
     const style = shadowStyle(surfaceY - y);
@@ -792,11 +903,56 @@ export class Renderer {
     ctx.save();
     ctx.translate(Math.round(x - cam), Math.round(surfaceY + oy + 1));
     ctx.scale(style.scale, style.scale);
-    ctx.filter = `blur(${style.blur}px)`;
-    ctx.fillStyle = `rgba(5, 12, 18, ${style.alpha})`;
+    if (soft) ctx.filter = `blur(${style.blur}px)`;
+    ctx.fillStyle = `rgba(5, 12, 18, ${style.alpha * (soft ? 1 : 0.72)})`;
     ctx.beginPath();
     ctx.ellipse(0, 0, 18, 4, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  private drawPlayerTurret(
+    x: number,
+    y: number,
+    angle: number,
+    muzzleT: number,
+    cam: number,
+    oy: number,
+  ): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(Math.round(x - cam), Math.round(y + oy + 4));
+    ctx.rotate(angle);
+    const housing = ctx.createLinearGradient(-2, -3, 3, 3);
+    housing.addColorStop(0, '#89957a');
+    housing.addColorStop(0.5, '#46503f');
+    housing.addColorStop(1, '#1d2622');
+    ctx.fillStyle = housing;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 3.2, 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#121a19';
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.moveTo(1, 0);
+    ctx.lineTo(9, 0);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(196,214,188,0.7)';
+    ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(1, -0.65);
+    ctx.lineTo(8.5, -0.65);
+    ctx.stroke();
+    if (muzzleT > 0) {
+      const flash = ctx.createRadialGradient(10, 0, 0, 10, 0, 7);
+      flash.addColorStop(0, 'rgba(255,255,220,1)');
+      flash.addColorStop(0.32, 'rgba(255,202,100,0.92)');
+      flash.addColorStop(1, 'rgba(255,117,50,0)');
+      ctx.fillStyle = flash;
+      ctx.beginPath();
+      ctx.arc(10, 0, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 

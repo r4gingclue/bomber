@@ -6,12 +6,14 @@ export interface ViewportRect { x: number; y: number; width: number; height: num
 export function fitViewport(w: number, h: number, inset: Insets): ViewportRect {
   const aw = Math.max(1, w - inset.left - inset.right);
   const ah = Math.max(1, h - inset.top - inset.bottom);
-  const scale = Math.min(aw / RENDER_W, ah / RENDER_H);
-  const width = Math.round(RENDER_W * scale);
-  const height = Math.round(RENDER_H * scale);
+  const widthConstrained = aw / RENDER_W <= ah / RENDER_H;
+  const constrained = Math.max(1, widthConstrained ? aw : ah);
+  const width = widthConstrained ? constrained : constrained * RENDER_W / RENDER_H;
+  const height = widthConstrained ? constrained * RENDER_H / RENDER_W : constrained;
+  const scale = width / RENDER_W;
   return {
-    x: Math.round(inset.left + (aw - width) / 2),
-    y: Math.round(inset.top + (ah - height) / 2),
+    x: inset.left + (aw - width) / 2,
+    y: inset.top + (ah - height) / 2,
     width, height, scale,
   };
 }

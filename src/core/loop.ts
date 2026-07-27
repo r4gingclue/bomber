@@ -28,7 +28,7 @@ export class Loop {
 
   constructor(
     private update: (dt: number) => void,
-    private render: (alpha: number) => void,
+    private render: (alpha: number, deliveredFrameMs: number) => void,
   ) {}
 
   start(): void {
@@ -37,11 +37,12 @@ export class Loop {
     this.last = performance.now();
     const tick = (now: number) => {
       if (!this.running) return;
-      const dt = (now - this.last) / 1000;
+      const deliveredFrameMs = now - this.last;
+      const dt = deliveredFrameMs / 1000;
       this.last = now;
       const n = this.stepper.advance(dt);
       for (let i = 0; i < n; i++) this.update(STEP);
-      this.render(this.stepper.alpha);
+      this.render(this.stepper.alpha, deliveredFrameMs);
       this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);

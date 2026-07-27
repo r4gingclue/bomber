@@ -3,7 +3,9 @@
 Sea Bomber ships original entity atlases and a small set of transformed scenery
 swatches. External source material is approved for environmental adaptation
 only; it must not be used for players, enemies, vehicles, weapons, or
-projectiles.
+projectiles. Original moving-art prompts, runtime keys, dimensions, and hashes
+are retained in
+[`original-art-provenance.md`](original-art-provenance.md).
 
 ## Provenance ledger
 
@@ -23,16 +25,22 @@ ledger, output, and license record must be reviewed together.
 
 ## Approved source packs
 
-Only these locally licensed PVGames packs are approved:
+Only these locally licensed PVGames packs are currently approved:
 
 - `Doomsday Tiles MilitaryBase.zip`
 - `Doomsday Tiles Rural.zip`
-- `Other Worlds Sands Tiles.zip`
 
-The relevant permitted-use record is
+Both approved archives contain the same byte-identical `Read Me.docx`. Its
+complete text and hash are retained in
 [`PVGAMES-LICENSE.txt`](PVGAMES-LICENSE.txt). Approval is limited to the terms
 and project policy recorded there; a similarly named pack is not automatically
 approved.
+
+`Other Worlds Sands Tiles.zip` contains no license/readme in the available
+archive. It is therefore excluded from the shipped provenance ledger. The
+former Sands-derived `desert-stone.png` was replaced with original,
+project-generated art; the reason is recorded in
+[`painted-scenery-sources.json`](painted-scenery-sources.json).
 
 ## Source and transformation rules
 
@@ -40,8 +48,8 @@ approved.
   object. `*.zip`, `*.rar`, and `assets-source/` are ignored; source material
   stays outside the shipped repository.
 - Commit only the finished derivative needed at runtime. The current approved
-  outputs are repainted seamless 256×256 material swatches with no complete
-  source building or arch retained.
+  external outputs are repainted seamless 256×256 material swatches with no
+  complete source building retained.
 - Transform source material substantially for Sea Bomber's painted palette and
   intended terrain/scenery use. Cropping or renaming an intact source object is
   not sufficient.
