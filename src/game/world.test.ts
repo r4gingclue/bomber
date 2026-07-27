@@ -435,6 +435,25 @@ describe('World', () => {
     expect(w.shots.some(p => p.id === 721)).toBe(false);
   });
 
+  it('uses the visible SAM sprite bounds for autocannon interception', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.subs.length = 0;
+    const x = w.player.x + 80;
+    const y = w.player.y;
+    w.shots.push(
+      { id: 722, ptype: 'sam', x, y: y + 7, vx: -140, vy: 0, age: 0, life: 4, damage: 25 },
+      { id: 723, ptype: 'bullet', x, y, vx: 300, vy: 0, age: 0, life: 0.7, damage: 8 },
+    );
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.shots.some(p => p.id === 722)).toBe(false);
+    expect(w.shots.some(p => p.id === 723)).toBe(false);
+    expect(w.events).toContain('boom');
+    expect(w.rings.some(r => r.x === x && r.y === y + 7)).toBe(true);
+  });
+
   it('spawns player missiles with the specified speed, damage, and lifetime', () => {
     const w = new World(mulberry32(1));
     w.stats.missileCap = 1;

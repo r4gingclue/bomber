@@ -26,6 +26,7 @@ const SUB_R = 9;
 const MINE_CHAIN_R = 30;
 const FUSE_R = 12;
 export const SCOUT_BLAST_R = 30;
+const SAM_INTERCEPT_R = 7;
 const DAMAGE = { torpedo: 20, sam: 25, flak: 15, water: 10 } as const;
 
 export function scoreBlast(
@@ -594,11 +595,13 @@ export class World {
       }
       const rocket = this.shots.find(s =>
         s !== p && s.ptype === 'sam' && s.age < s.life &&
-        circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: 3 }));
+        circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SAM_INTERCEPT_R }));
       if (rocket) {
         p.age = p.life;
         rocket.age = rocket.life;
         this.boomParticles(rocket.x, rocket.y, 4);
+        this.rings.push({ x: rocket.x, y: rocket.y, age: 0 });
+        this.events.push('boom');
         return;
       }
       for (const s of this.subs) {
