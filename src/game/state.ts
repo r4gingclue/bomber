@@ -1,4 +1,4 @@
-export type Phase = 'menu' | 'playing' | 'upgrade' | 'actIntro' | 'gameover';
+export type Phase = 'menu' | 'playing' | 'results' | 'upgrade' | 'actIntro' | 'gameover';
 
 export class StateMachine {
   phase: Phase = 'menu';
@@ -7,19 +7,19 @@ export class StateMachine {
     if (this.phase === 'menu') this.phase = 'playing';
   }
   waveCleared(): void {
-    if (this.phase === 'playing') this.phase = 'upgrade';
+    if (this.phase === 'playing') this.phase = 'results';
   }
-  cardPicked(): void {
-    if (this.phase === 'upgrade') this.phase = 'playing';
+  resultsAccepted(): void {
+    if (this.phase === 'results') this.phase = 'upgrade';
+  }
+  upgradesConfirmed(actComplete: boolean): void {
+    if (this.phase === 'upgrade') this.phase = actComplete ? 'actIntro' : 'playing';
   }
   died(): void {
     if (this.phase === 'playing') this.phase = 'gameover';
   }
   toMenu(): void {
     if (this.phase === 'gameover') this.phase = 'menu';
-  }
-  toActIntro(): void {
-    if (this.phase === 'upgrade') this.phase = 'actIntro';
   }
   introDone(): void {
     if (this.phase === 'actIntro') this.phase = 'playing';

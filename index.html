@@ -5,13 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>Sea Bomber</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #06101e; overflow: hidden; }
-    body { display: flex; align-items: center; justify-content: center; }
-    canvas { image-rendering: pixelated; touch-action: none; }
+    :root {
+      --sat: env(safe-area-inset-top, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      background: #101418;
+    }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    canvas { image-rendering: auto; touch-action: none; }
+    #game { z-index: 0; }
+    #ui { position: fixed; inset: 0; z-index: 1; }
   </style>
 </head>
 <body>
   <canvas id="game"></canvas>
+  <canvas id="ui" aria-hidden="true"></canvas>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

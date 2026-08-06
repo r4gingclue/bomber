@@ -1,7 +1,6 @@
 export type Biome = 'sea' | 'coast' | 'inland';
 
-/** inland joins the rotation in Plan 2 when its ground/air roster exists */
-export const BIOME_ORDER: Biome[] = ['sea', 'coast'];
+export const BIOME_ORDER: Biome[] = ['sea', 'coast', 'inland'];
 
 export function biomeForAct(act: number): Biome {
   return BIOME_ORDER[(act - 1) % BIOME_ORDER.length];

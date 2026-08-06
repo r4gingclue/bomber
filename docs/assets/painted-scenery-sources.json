@@ -1,0 +1,23 @@
+{
+  "license": "docs/assets/PVGAMES-LICENSE.txt",
+  "outputs": [
+    {
+      "output": "public/assets/graphics/scenery/military-concrete.png",
+      "pack": "Doomsday Tiles MilitaryBase.zip",
+      "source": "Doomsday Tiles MilitaryBase/Building40_1.png",
+      "transform": "repainted seamless concrete/roof swatch; no complete building retained"
+    },
+    {
+      "output": "public/assets/graphics/scenery/rural-wall.png",
+      "pack": "Doomsday Tiles Rural.zip",
+      "source": "Doomsday Tiles Rural/Building10_1.png",
+      "transform": "repainted seamless plaster/stone swatch; no complete building retained"
+    }
+  ],
+  "excludedPacks": [
+    {
+      "pack": "Other Worlds Sands Tiles.zip",
+      "reason": "The archive contains no README, license, or terms file; the previous derivative was replaced with original project-generated desert-stone.png."
+    }
+  ]
+}

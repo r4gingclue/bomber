@@ -16,17 +16,21 @@ export interface Sub extends Entity {
   surfaceTimer: number;
   surfaced: boolean;
   hitFlash: number;
+  /** optional horizontal patrol limits for terrain-bound ground units */
+  patrol?: { x0: number; x1: number };
 }
 
 export type DepthCharge = Entity;
 
-export type ProjectileType = 'torpedo' | 'sam' | 'flak' | 'bullet';
+export type ProjectileType = 'torpedo' | 'sam' | 'flak' | 'bullet' | 'shot' | 'pmissile';
 
 export interface Projectile extends Entity {
   ptype: ProjectileType;
   age: number;
   life: number;
   damage: number;
+  pierceRemaining?: number;
+  hitTargetIds?: Set<number>;
 }
 
 export interface Particle extends Entity {

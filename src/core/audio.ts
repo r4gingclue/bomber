@@ -1,31 +1,134 @@
+import { proceduralAudioKind, type AudioEvent } from './audio-events';
+import {
+  loadAudioPreferences,
+  saveAudioPreferences,
+  type AudioPreferences,
+  type StorageLike,
+} from './audio-preferences';
+import type { SoundBank } from '../audio/sound-bank';
+import { VoicePolicy } from '../audio/voice-policy';
+import { MusicStateMonitor, type MusicSnapshot, type MusicState } from '../audio/music-state';
+import type { MusicDirector } from '../audio/music-director';
+import { AUDIO_MANIFEST } from '../audio/manifest';
+
+export interface AudioBusControls {
+  setMaster(value: number): void;
+  setMusic(value: number): void;
+  setSfx(value: number): void;
+}
+
+export interface AudioOptions {
+  createContext?: () => AudioContext;
+  setInterval?: (callback: () => void, ms: number) => number;
+  bank?: SoundBank;
+  director?: MusicDirector;
+  createBank?: (context: AudioContext) => SoundBank;
+  createDirector?: (context: AudioContext, musicBus: GainNode) => MusicDirector;
+}
+
 export class AudioSys {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private sfxBus: GainNode | null = null;
   private musicStep = 0;
+  private recordedMusicActive = false;
   private nextNote = 0;
-  muted = false;
+  private settings: AudioPreferences;
+  private readonly policy = new VoicePolicy();
+  private readonly voices = new Map<string, AudioBufferSourceNode>();
+  private readonly ambienceSources = new Map<string, AudioBufferSourceNode>();
+  private voiceId = 0;
+  private readonly musicMonitor = new MusicStateMonitor();
+  private currentMusicState: MusicState = 'menu';
+  private bank?: SoundBank;
+  private director?: MusicDirector;
+  private readonly options: Required<Pick<AudioOptions, 'createContext' | 'setInterval'>>
+    & Pick<AudioOptions, 'createBank' | 'createDirector'>;
+
+  constructor(
+    private readonly storage: StorageLike | undefined = browserStorage(),
+    private buses?: AudioBusControls,
+    options: AudioOptions = {},
+  ) {
+    this.options = {
+      createContext: options.createContext ?? (() => new AudioContext()),
+      setInterval: options.setInterval ?? ((callback, ms) => window.setInterval(callback, ms)),
+      createBank: options.createBank,
+      createDirector: options.createDirector,
+    };
+    this.bank = options.bank;
+    this.director = options.director;
+    this.settings = loadAudioPreferences(storage);
+    this.applyLevels();
+  }
+
+  get muted(): boolean { return this.settings.muted; }
+  get preferences(): Readonly<AudioPreferences> { return { ...this.settings }; }
+  get ready(): boolean { return this.ctx !== null; }
+  get musicState(): MusicState { return this.currentMusicState; }
 
   /** Call on first user gesture (browser autoplay policy). Idempotent. */
-  resume(): void {
+  async resume(): Promise<void> {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state === 'suspended') {
+        try { await this.ctx.resume(); } catch { /* retry on a later gesture */ }
+      }
       return;
     }
-    this.ctx = new AudioContext();
+    try {
+      this.ctx = this.options.createContext();
+    } catch {
+      this.ctx = null;
+      return;
+    }
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.35;
+    this.musicBus = this.ctx.createGain();
+    this.sfxBus = this.ctx.createGain();
+    this.musicBus.connect(this.master);
+    this.sfxBus.connect(this.master);
     this.master.connect(this.ctx.destination);
+    this.bank ??= this.options.createBank?.(this.ctx);
+    this.director ??= this.options.createDirector?.(this.ctx, this.musicBus);
+    this.buses = this.nodeBusControls();
+    this.applyLevels();
     this.nextNote = this.ctx.currentTime + 0.1;
-    window.setInterval(() => this.schedule(), 30);
+    this.options.setInterval(() => this.schedule(), 30);
+    try { await this.bank?.loadSfx(); } catch { /* cue fallbacks remain available */ }
   }
 
   toggleMute(): void {
-    this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.35;
+    this.settings = { ...this.settings, muted: !this.settings.muted };
+    this.persistAndApply();
   }
 
-  handle(ev: string): void {
+  setMusicVolume(value: number): void {
+    this.settings = { ...this.settings, music: clamp01(value) };
+    this.persistAndApply();
+  }
+
+  setSfxVolume(value: number): void {
+    this.settings = { ...this.settings, sfx: clamp01(value) };
+    this.persistAndApply();
+  }
+
+  handle(event: AudioEvent): void {
     if (!this.ctx) return;
+    if (event === 'wave-clear' || event === 'game-over') this.director?.stinger(event);
+    const cue = this.bank?.cue(event);
+    if (cue && cue.buffers.length > 0) {
+      const decision = this.policy.request(event, cue);
+      if (decision) {
+        if (decision.replaceId) this.stopVoice(decision.replaceId);
+        const buffer = cue.buffers[decision.variant];
+        if (buffer) {
+          this.playBuffer(event, cue.priority, buffer, decision.pitch, decision.gain);
+          if (event === 'underwater-explosion' || event === 'aircraft-explosion') this.duckMusic();
+          return;
+        }
+      }
+    }
+    const ev = proceduralAudioKind(event);
     switch (ev) {
       case 'boom': this.noise(0.5, 300, 0.5); break;
       case 'splash': this.noise(0.18, 1800, 0.15); break;
@@ -38,12 +141,100 @@ export class AudioSys {
     }
   }
 
+  async setHidden(hidden: boolean): Promise<void> {
+    if (!this.ctx) return;
+    try {
+      if (hidden) await this.ctx.suspend();
+      else await this.ctx.resume();
+    } catch {
+      // Lifecycle operations are best effort; gameplay remains independent.
+    }
+  }
+
+  async loadMusic(): Promise<void> {
+    const bank = this.bank;
+    const director = this.director;
+    const family = AUDIO_MANIFEST.musicFamily;
+    if (!bank || !director || !family) return;
+    try {
+      await bank.loadMusic();
+      const stems = Object.fromEntries(family.stems.map(name => [name, bank.music(name)?.buffers[0]]));
+      if (Object.values(stems).some(Boolean)) {
+        director.start(stems, family.loopDuration);
+        this.recordedMusicActive = true;
+      }
+      director.setState(this.currentMusicState);
+      this.startAmbience('rotor');
+      this.startAmbience('ocean-wind');
+    } catch {
+      // The procedural score remains available when music loading fails.
+    }
+  }
+
+  private startAmbience(name: string): void {
+    if (!this.ctx || !this.musicBus || this.ambienceSources.has(name)) return;
+    const cue = this.bank?.music(name);
+    const buffer = cue?.buffers[0];
+    if (!cue || !buffer) return;
+    const source = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    source.buffer = buffer;
+    source.loop = true;
+    gain.gain.value = cue.gain;
+    source.connect(gain);
+    gain.connect(this.musicBus);
+    source.start();
+    this.ambienceSources.set(name, source);
+  }
+
+  updateMusic(snapshot: MusicSnapshot): MusicState {
+    this.currentMusicState = this.musicMonitor.sample(snapshot);
+    this.director?.setState(this.currentMusicState);
+    this.buses?.setMusic(this.currentMusicState === 'silent' ? 0 : this.settings.music);
+    return this.currentMusicState;
+  }
+
+  private playBuffer(event: AudioEvent, priority: number, buffer: AudioBuffer, pitch: number, gain: number): void {
+    const id = `voice-${++this.voiceId}`;
+    const source = this.ctx!.createBufferSource();
+    const voiceGain = this.ctx!.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = pitch;
+    voiceGain.gain.value = gain;
+    source.connect(voiceGain);
+    voiceGain.connect(this.sfxBus!);
+    source.onended = () => {
+      this.voices.delete(id);
+      this.policy.end(id);
+    };
+    this.voices.set(id, source);
+    this.policy.start(id, event, priority, isCritical(event));
+    source.start();
+  }
+
+  private stopVoice(id: string): void {
+    const source = this.voices.get(id);
+    if (source) {
+      try { source.stop(); } catch { /* already ended */ }
+      this.voices.delete(id);
+    }
+    this.policy.end(id);
+  }
+
+  private duckMusic(): void {
+    if (!this.musicBus || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.musicBus.gain.cancelScheduledValues(now);
+    this.musicBus.gain.setTargetAtTime(this.settings.music * 0.45, now, 0.025);
+    this.musicBus.gain.setTargetAtTime(this.settings.music, now + 0.25, 0.12);
+  }
+
   private env(gain: number, dur: number): GainNode {
     const g = this.ctx!.createGain();
     const t = this.ctx!.currentTime;
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    g.connect(this.master!);
+    g.connect(this.sfxBus!);
     return g;
   }
 
@@ -85,6 +276,7 @@ export class AudioSys {
 
   /** 120 BPM lookahead scheduler: bass + arp + rotor thump. */
   private schedule(): void {
+    if (this.recordedMusicActive) return;
     const ctx = this.ctx!;
     const SIXTEENTH = 60 / 120 / 4;
     const BASS = [55, 55, 65.4, 49];             // A1 A1 C2 G1 per bar
@@ -109,7 +301,7 @@ export class AudioSys {
     g.gain.setValueAtTime(gain, at);
     g.gain.exponentialRampToValueAtTime(0.001, at + dur);
     o.connect(g);
-    g.connect(this.master!);
+    g.connect(this.musicBus!);
     o.start(at);
     o.stop(at + dur);
   }
@@ -130,7 +322,46 @@ export class AudioSys {
     g.gain.value = 0.12;
     src.connect(f);
     f.connect(g);
-    g.connect(this.master!);
+    g.connect(this.musicBus!);
     src.start(at);
   }
+
+  private persistAndApply(): void {
+    saveAudioPreferences(this.storage, this.settings);
+    this.applyLevels();
+  }
+
+  private applyLevels(): void {
+    this.buses?.setMaster(this.settings.muted ? 0 : 1);
+    this.buses?.setMusic(this.currentMusicState === 'silent' ? 0 : this.settings.music);
+    this.buses?.setSfx(this.settings.sfx);
+  }
+
+  private nodeBusControls(): AudioBusControls {
+    return {
+      setMaster: value => this.ramp(this.master!, value * 0.35),
+      setMusic: value => this.ramp(this.musicBus!, value),
+      setSfx: value => this.ramp(this.sfxBus!, value),
+    };
+  }
+
+  private ramp(node: GainNode, value: number): void {
+    const now = this.ctx!.currentTime;
+    node.gain.cancelScheduledValues(now);
+    node.gain.setTargetAtTime(value, now, 0.015);
+  }
+}
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+
+function browserStorage(): StorageLike | undefined {
+  try {
+    return typeof localStorage === 'undefined' ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function isCritical(event: AudioEvent): boolean {
+  return event === 'player-damaged' || event === 'game-over' || event === 'sonar-ping';
 }

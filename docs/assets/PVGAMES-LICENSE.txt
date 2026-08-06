@@ -1,0 +1,61 @@
+PVGames README / Terms of Use — complete retained text
+=====================================================
+
+Applicability
+-------------
+
+The source archives `Doomsday Tiles MilitaryBase.zip` and
+`Doomsday Tiles Rural.zip` each contain a root-level `Read Me.docx`. The two
+files are byte-identical:
+
+SHA-256: 0761d7b0e9ec06fa8b010de7a7f063233dd5a60668174b0e293100fb9bb94061
+
+The complete text below was converted directly from that file. Nothing has
+been excerpted or omitted.
+
+--- BEGIN COMPLETE PVGAMES README TEXT ---
+
+First and foremost I want to thank you for your purchase of this resource pack. Each pack takes a great deal of time and effort to create, so it means a lot to me that you have shown your support. I also hope that these resources are of benefit to you and your endeavors!
+
+FAQ
+Can I edit the images for my project?
+You absolutely may edit these resources for your project. The only thing you may not do is edit them and distribute them freely or for a fee, but using the edits or original resources in any commercial or non-commercial project is fine.
+
+Can I use these resources for non-game projects, such as blogs or promotional material?
+Absolutely. You may use the resources in the creation of any promotional material or for blog posts or anything else similar. The only exception is that you may not use the material bases in any way that can be freely pirated (so do not post just the base template, for example).
+
+What are your Terms of Use?
+You can use these resources in any commercial or non-commercial project that you see fit, you just cannot resell or distribute the resources freely, either as they are or edited versions. You can use them in any game-making software.
+
+I don’t understand how to use certain resources – can I contact you for help?
+YES! My contact information can be found below.
+
+Is there anything to help me use these assets?
+Yes! There is a character maker and a level editor, both available in the software channel of the PVGames Discord (address below). You are welcome to download and utilize them. In addition, you can find numerous tutorials and links to videos and other helpful material, not to mention a great community of people who enjoy helping one another.
+
+Contact Info
+If you enjoy these packs and want to let me know, feel free to drop me a message! If you have any problems with the resources, or if you find something that you believe is an error, or just want some advice/help on how to utilize these resources, then feel free to also send me a message. The best way to reach me is through Discord.
+
+Facebook: https://www.facebook.com/PioneerValleyGames
+Website: http://www.pioneervalleygames.com/
+Twitter: PVGames
+PVGames Discord channel (you can grab the new software here, as well as seek help, post your project, and more): https://discord.gg/J9aYZPt
+Patreon: https://www.patreon.com/PVGames
+*Patreon provides thousands of new resources, including many not-yet-released and exclusive items. It also provides additional asset packs at no extra cost.
+
+
+Thank you kindly again for your purchase, and I hope these resources serve you well!
+
+-Jesse
+Pioneer Valley Games
+
+--- END COMPLETE PVGAMES README TEXT ---
+
+Sea Bomber scope note
+---------------------
+
+`Other Worlds Sands Tiles.zip` contains no README, license, or terms file, so
+this repository does not assert that the Doomsday README governs that archive.
+The previously recorded Sands-derived output was replaced with original
+project-generated artwork and Sands is excluded from the shipped provenance
+ledger.

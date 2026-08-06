@@ -1,0 +1,540 @@
+{
+  "schemaVersion": 3,
+  "recordedOn": "2026-07-27",
+  "sourceBaselineCommit": "d48664f",
+  "rawFile": "heavy-combat-samples.csv",
+  "rawSha256": "76d68aee97be4bb9a83335d96f18655009858c7a5f8cd5fcbc1a54f4b39d0b0d",
+  "rawBytes": 3299328,
+  "gate": {
+    "minimumDurationMs": 600000,
+    "maximumPlayableP95Ms": 34,
+    "result": "pass"
+  },
+  "run": {
+    "startedAt": "2026-07-27T16:32:54.870Z",
+    "endedAt": "2026-07-27T16:42:54.871Z",
+    "durationMs": 600000.7,
+    "sampleCount": 71988,
+    "deliveredFrameMs": {
+      "minimum": 6.3,
+      "maximum": 115.8,
+      "mean": 8.335053,
+      "p95": 8.5
+    },
+    "renderDurationMs": {
+      "minimum": 0.1,
+      "maximum": 1.2,
+      "mean": 0.394289,
+      "p95": 0.5
+    },
+    "windowDurationMs": 30000,
+    "windowCount": 21,
+    "tierAtStart": "full",
+    "tierAtEnd": "full",
+    "tierTransitions": []
+  },
+  "methodology": {
+    "browser": "Codex In-app Browser",
+    "harness": "Checked-in development-only src/testing/graphics-harness.ts with scene=heavy-combat and record enabled.",
+    "measurement": "Loop supplies requestAnimationFrame delivery intervals to QualityMonitor.sample(deliveredFrameMs). The CSV retains that delivered interval and Renderer.draw duration separately.",
+    "pressureScope": "Delivered-frame time includes simulation, rendering, browser scheduling, and display delivery; it is not a synchronous draw-submit proxy.",
+    "scenario": "The checked-in harness restages 18 entities, 48 projectiles, 6 charges, 8 impact blasts, and 120 particles every 100 ms while normal World.update and Renderer.draw continue.",
+    "windowing": "Thirty-second buckets start at capture elapsed time zero. The final partial bucket contains the sample that crossed the ten-minute threshold.",
+    "productionBoundary": "This is a development-harness performance capture. Production preview is verified separately without query overrides or the window harness API.",
+    "limitation": "The browser does not expose physical-device thermals or JavaScript heap telemetry."
+  },
+  "tierHistory": [
+    {
+      "tier": "full",
+      "firstSample": 1,
+      "lastSample": 71988,
+      "firstElapsedMs": 0,
+      "lastElapsedMs": 600000.7
+    }
+  ],
+  "windows": [
+    {
+      "window": 1,
+      "rangeStartMs": 0,
+      "rangeEndMs": 30000,
+      "firstElapsedMs": 0,
+      "lastElapsedMs": 29998.7,
+      "sampleCount": 3588,
+      "deliveredFrameMs": {
+        "minimum": 6.5,
+        "maximum": 115.8,
+        "mean": 8.367224,
+        "p95": 9.2
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.358361,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 2,
+      "rangeStartMs": 30000,
+      "rangeEndMs": 60000,
+      "firstElapsedMs": 30006.9,
+      "lastElapsedMs": 59998.8,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.3,
+        "mean": 8.333361,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 1.1,
+        "mean": 0.398944,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 3,
+      "rangeStartMs": 60000,
+      "rangeEndMs": 90000,
+      "firstElapsedMs": 60007.2,
+      "lastElapsedMs": 89998.9,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.5,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.9
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 0.9,
+        "mean": 0.382194,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 4,
+      "rangeStartMs": 90000,
+      "rangeEndMs": 120000,
+      "firstElapsedMs": 90007.2,
+      "lastElapsedMs": 119998.9,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.3,
+        "maximum": 10.3,
+        "mean": 8.333361,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 1,
+        "mean": 0.400833,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 5,
+      "rangeStartMs": 120000,
+      "rangeEndMs": 150000,
+      "firstElapsedMs": 120007.2,
+      "lastElapsedMs": 149999.1,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.4,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 0.9,
+        "mean": 0.402306,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 6,
+      "rangeStartMs": 150000,
+      "rangeEndMs": 180000,
+      "firstElapsedMs": 150007.4,
+      "lastElapsedMs": 179999.2,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.5,
+        "maximum": 10.4,
+        "mean": 8.333389,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.393917,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 7,
+      "rangeStartMs": 180000,
+      "rangeEndMs": 210000,
+      "firstElapsedMs": 180007.5,
+      "lastElapsedMs": 209999.5,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.5,
+        "maximum": 10.4,
+        "mean": 8.333333,
+        "p95": 8.7
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 0.9,
+        "mean": 0.405556,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 8,
+      "rangeStartMs": 210000,
+      "rangeEndMs": 240000,
+      "firstElapsedMs": 210007.7,
+      "lastElapsedMs": 239999.4,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.3,
+        "maximum": 10.4,
+        "mean": 8.333389,
+        "p95": 9.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.393861,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 9,
+      "rangeStartMs": 240000,
+      "rangeEndMs": 270000,
+      "firstElapsedMs": 240007.8,
+      "lastElapsedMs": 269999.5,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.3,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 0.9,
+        "mean": 0.400361,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 10,
+      "rangeStartMs": 270000,
+      "rangeEndMs": 300000,
+      "firstElapsedMs": 270007.9,
+      "lastElapsedMs": 299999.6,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.4,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1.1,
+        "mean": 0.397972,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 11,
+      "rangeStartMs": 300000,
+      "rangeEndMs": 330000,
+      "firstElapsedMs": 300008.1,
+      "lastElapsedMs": 329999.7,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.3,
+        "maximum": 10.4,
+        "mean": 8.333389,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 1.1,
+        "mean": 0.399917,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 12,
+      "rangeStartMs": 330000,
+      "rangeEndMs": 360000,
+      "firstElapsedMs": 330008.1,
+      "lastElapsedMs": 359991.6,
+      "sampleCount": 3599,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.333343,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 1,
+        "mean": 0.398222,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 13,
+      "rangeStartMs": 360000,
+      "rangeEndMs": 390000,
+      "firstElapsedMs": 360000,
+      "lastElapsedMs": 389999.9,
+      "sampleCount": 3601,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.33338,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1.2,
+        "mean": 0.394502,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 14,
+      "rangeStartMs": 390000,
+      "rangeEndMs": 420000,
+      "firstElapsedMs": 390008.4,
+      "lastElapsedMs": 419991.8,
+      "sampleCount": 3599,
+      "deliveredFrameMs": {
+        "minimum": 6.4,
+        "maximum": 10.4,
+        "mean": 8.33337,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.396971,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 15,
+      "rangeStartMs": 420000,
+      "rangeEndMs": 450000,
+      "firstElapsedMs": 420000.2,
+      "lastElapsedMs": 449998.6,
+      "sampleCount": 3601,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.332908,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.39439,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 16,
+      "rangeStartMs": 450000,
+      "rangeEndMs": 480000,
+      "firstElapsedMs": 450008.9,
+      "lastElapsedMs": 479991.8,
+      "sampleCount": 3599,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.333815,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 1.1,
+        "mean": 0.396332,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 17,
+      "rangeStartMs": 480000,
+      "rangeEndMs": 510000,
+      "firstElapsedMs": 480000.3,
+      "lastElapsedMs": 509992,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.390139,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 18,
+      "rangeStartMs": 510000,
+      "rangeEndMs": 540000,
+      "firstElapsedMs": 510000.4,
+      "lastElapsedMs": 539992.2,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.5
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.386583,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 19,
+      "rangeStartMs": 540000,
+      "rangeEndMs": 570000,
+      "firstElapsedMs": 540000.6,
+      "lastElapsedMs": 569992.3,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.2,
+        "maximum": 1.1,
+        "mean": 0.402833,
+        "p95": 0.6
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 20,
+      "rangeStartMs": 570000,
+      "rangeEndMs": 600000,
+      "firstElapsedMs": 570000.7,
+      "lastElapsedMs": 599992.4,
+      "sampleCount": 3600,
+      "deliveredFrameMs": {
+        "minimum": 6.6,
+        "maximum": 10.4,
+        "mean": 8.333361,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.1,
+        "maximum": 1,
+        "mean": 0.3915,
+        "p95": 0.5
+      },
+      "tiers": [
+        "full"
+      ]
+    },
+    {
+      "window": 21,
+      "rangeStartMs": 600000,
+      "rangeEndMs": 630000,
+      "firstElapsedMs": 600000.7,
+      "lastElapsedMs": 600000.7,
+      "sampleCount": 1,
+      "deliveredFrameMs": {
+        "minimum": 8.4,
+        "maximum": 8.4,
+        "mean": 8.4,
+        "p95": 8.4
+      },
+      "renderDurationMs": {
+        "minimum": 0.3,
+        "maximum": 0.3,
+        "mean": 0.3,
+        "p95": 0.3
+      },
+      "tiers": [
+        "full"
+      ]
+    }
+  ]
+}

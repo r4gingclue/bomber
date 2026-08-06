@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { FixedStepper, STEP } from './loop';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { FixedStepper, Loop, STEP } from './loop';
 
 describe('FixedStepper', () => {
   it('runs one step per 1/60s of elapsed time', () => {
@@ -21,4 +21,27 @@ describe('FixedStepper', () => {
     expect(s.alpha).toBeGreaterThanOrEqual(0);
     expect(s.alpha).toBeLessThan(1);
   });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+it('reports the delivered requestAnimationFrame interval to the renderer', () => {
+  let animationFrame: FrameRequestCallback | undefined;
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    animationFrame = callback;
+    return 1;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.spyOn(performance, 'now').mockReturnValue(100);
+  const render = vi.fn();
+  const loop = new Loop(vi.fn(), render);
+
+  loop.start();
+  animationFrame?.(116.75);
+
+  expect(render).toHaveBeenCalledWith(expect.any(Number), 16.75);
+  loop.stop();
 });
