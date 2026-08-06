@@ -1,11 +1,36 @@
 import { proceduralAudioKind, type AudioEvent } from './audio-events';
+import {
+  loadAudioPreferences,
+  saveAudioPreferences,
+  type AudioPreferences,
+  type StorageLike,
+} from './audio-preferences';
+
+export interface AudioBusControls {
+  setMaster(value: number): void;
+  setMusic(value: number): void;
+  setSfx(value: number): void;
+}
 
 export class AudioSys {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private sfxBus: GainNode | null = null;
   private musicStep = 0;
   private nextNote = 0;
-  muted = false;
+  private settings: AudioPreferences;
+
+  constructor(
+    private readonly storage: StorageLike | undefined = browserStorage(),
+    private buses?: AudioBusControls,
+  ) {
+    this.settings = loadAudioPreferences(storage);
+    this.applyLevels();
+  }
+
+  get muted(): boolean { return this.settings.muted; }
+  get preferences(): Readonly<AudioPreferences> { return { ...this.settings }; }
 
   /** Call on first user gesture (browser autoplay policy). Idempotent. */
   resume(): void {
@@ -15,15 +40,30 @@ export class AudioSys {
     }
     this.ctx = new AudioContext();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.35;
+    this.musicBus = this.ctx.createGain();
+    this.sfxBus = this.ctx.createGain();
+    this.musicBus.connect(this.master);
+    this.sfxBus.connect(this.master);
     this.master.connect(this.ctx.destination);
+    this.buses = this.nodeBusControls();
+    this.applyLevels();
     this.nextNote = this.ctx.currentTime + 0.1;
     window.setInterval(() => this.schedule(), 30);
   }
 
   toggleMute(): void {
-    this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.35;
+    this.settings = { ...this.settings, muted: !this.settings.muted };
+    this.persistAndApply();
+  }
+
+  setMusicVolume(value: number): void {
+    this.settings = { ...this.settings, music: clamp01(value) };
+    this.persistAndApply();
+  }
+
+  setSfxVolume(value: number): void {
+    this.settings = { ...this.settings, sfx: clamp01(value) };
+    this.persistAndApply();
   }
 
   handle(event: AudioEvent): void {
@@ -46,7 +86,7 @@ export class AudioSys {
     const t = this.ctx!.currentTime;
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    g.connect(this.master!);
+    g.connect(this.sfxBus!);
     return g;
   }
 
@@ -112,7 +152,7 @@ export class AudioSys {
     g.gain.setValueAtTime(gain, at);
     g.gain.exponentialRampToValueAtTime(0.001, at + dur);
     o.connect(g);
-    g.connect(this.master!);
+    g.connect(this.musicBus!);
     o.start(at);
     o.stop(at + dur);
   }
@@ -133,7 +173,42 @@ export class AudioSys {
     g.gain.value = 0.12;
     src.connect(f);
     f.connect(g);
-    g.connect(this.master!);
+    g.connect(this.musicBus!);
     src.start(at);
+  }
+
+  private persistAndApply(): void {
+    saveAudioPreferences(this.storage, this.settings);
+    this.applyLevels();
+  }
+
+  private applyLevels(): void {
+    this.buses?.setMaster(this.settings.muted ? 0 : 1);
+    this.buses?.setMusic(this.settings.music);
+    this.buses?.setSfx(this.settings.sfx);
+  }
+
+  private nodeBusControls(): AudioBusControls {
+    return {
+      setMaster: value => this.ramp(this.master!, value * 0.35),
+      setMusic: value => this.ramp(this.musicBus!, value),
+      setSfx: value => this.ramp(this.sfxBus!, value),
+    };
+  }
+
+  private ramp(node: GainNode, value: number): void {
+    const now = this.ctx!.currentTime;
+    node.gain.cancelScheduledValues(now);
+    node.gain.setTargetAtTime(value, now, 0.015);
+  }
+}
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+
+function browserStorage(): StorageLike | undefined {
+  try {
+    return typeof localStorage === 'undefined' ? undefined : localStorage;
+  } catch {
+    return undefined;
   }
 }
