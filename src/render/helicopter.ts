@@ -1,5 +1,11 @@
 export type HelicopterPose = 'level' | 'accelerate' | 'brake' | 'climb' | 'descend';
 
+const DISPLAY_SIZE = { width: 64, height: 32 } as const;
+
+export function helicopterDisplaySize(): { width: number; height: number } {
+  return DISPLAY_SIZE;
+}
+
 export function helicopterPose(vx: number, vy: number, facing: 1 | -1): HelicopterPose {
   if (vy < -70) return 'climb';
   if (vy > 70) return 'descend';

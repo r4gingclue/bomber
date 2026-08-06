@@ -7,11 +7,12 @@ import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS, isWater } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
 import type { LoadedAssets, LoadedFrameAsset } from './assets';
-import { helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
+import { helicopterDisplaySize, helicopterPose, shadowStyle, type HelicopterPose } from './helicopter';
 import { sceneryForTerrain, type SceneryProp } from './scenery';
 import { budgetedParticlesOldestFirst, effectBudget } from './effects';
 import type { QualityTier } from './quality';
 import { damageFlashMode } from './motion';
+import { projectileHasTrail, projectileRotation, projectileVelocityAngle } from './projectile';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   const card = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, false).cards[i];
@@ -116,11 +117,22 @@ export class Renderer {
       const pose = helicopterPose(pl.vx, pl.vy, pl.facing);
       const playerAsset = this.assets.player.heli;
       const frame = playerAsset.frames[HELICOPTER_POSES.indexOf(pose)];
+      const display = helicopterDisplaySize();
       this.drawPlayerRotor(pl.x, pl.y, cam, oy, t);
       ctx.save();
       ctx.translate(Math.round(pl.x - cam), Math.round(pl.y + oy));
       ctx.scale(pl.facing, 1);
-      ctx.drawImage(playerAsset.image, frame.x, frame.y, frame.w, frame.h, -48, -24, 96, 48);
+      ctx.drawImage(
+        playerAsset.image,
+        frame.x,
+        frame.y,
+        frame.w,
+        frame.h,
+        -display.width / 2,
+        -display.height / 2,
+        display.width,
+        display.height,
+      );
       ctx.restore();
       this.drawPlayerTurret(pl.x, pl.y, pl.turretAngle, pl.muzzleT, cam, oy);
     }
@@ -358,9 +370,10 @@ export class Renderer {
     const { ctx } = this;
     for (const c of world.charges) this.drawAtlas(this.weaponAsset('charge'), c.x, c.y, cam, oy);
     for (const p of world.shots) {
-      const rot = Math.atan2(p.vy, p.vx);
-      const nx = Math.cos(rot);
-      const ny = Math.sin(rot);
+      const velocityAngle = projectileVelocityAngle(p.vx, p.vy);
+      const spriteRotation = projectileRotation(p.ptype, p.vx, p.vy);
+      const nx = Math.cos(velocityAngle);
+      const ny = Math.sin(velocityAngle);
       if (p.ptype === 'bullet' || p.ptype === 'shot' || p.ptype === 'flak') {
         const warm = p.ptype === 'bullet' ? 'rgba(255,242,176,0.45)' : 'rgba(255,162,104,0.38)';
         ctx.strokeStyle = warm;
@@ -370,15 +383,15 @@ export class Renderer {
         ctx.lineTo(Math.round(p.x - cam + nx * 3), Math.round(p.y + oy + ny * 3));
         ctx.stroke();
       }
-      if (p.ptype === 'sam' || p.ptype === 'pmissile') {
-        ctx.strokeStyle = p.ptype === 'sam' ? 'rgba(255,180,108,0.35)' : 'rgba(209,234,255,0.3)';
+      if (projectileHasTrail(p.ptype)) {
+        ctx.strokeStyle = 'rgba(209,234,255,0.3)';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(Math.round(p.x - cam - nx * 10), Math.round(p.y + oy - ny * 10));
         ctx.lineTo(Math.round(p.x - cam - nx * 2), Math.round(p.y + oy - ny * 2));
         ctx.stroke();
       }
-      this.drawAtlas(this.weaponAsset(p.ptype), p.x, p.y, cam, oy, { rot });
+      this.drawAtlas(this.weaponAsset(p.ptype), p.x, p.y, cam, oy, { rot: spriteRotation });
     }
     for (const r of world.rings) {
       this.drawImpactBlast(world, r.x, r.y, r.age, cam, oy);
@@ -958,9 +971,9 @@ export class Renderer {
 
   private drawPlayerRotor(x: number, y: number, cam: number, oy: number, t: number): void {
     const { ctx } = this;
-    const sweep = 24 + Math.sin(t * 38) * 3;
+    const sweep = 20 + Math.sin(t * 38) * 2;
     ctx.save();
-    ctx.translate(Math.round(x - cam), Math.round(y + oy - 16));
+    ctx.translate(Math.round(x - cam), Math.round(y + oy - 11));
     ctx.strokeStyle = 'rgba(230, 238, 242, 0.58)';
     ctx.lineWidth = 1;
     ctx.beginPath();
