@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { UPGRADE_NODES } from '../game/upgrade-tree';
-import { upgradeLayout } from './upgrade-layout';
+import { resultsControlAt, upgradeControlAt, upgradeLayout } from './upgrade-layout';
 import type { UiRect } from './ui-layout';
 
 const weaponNodes = UPGRADE_NODES.filter(node => node.branch === 'weapons');
@@ -71,6 +71,28 @@ it('keeps desktop descriptions in cards and gives portrait a bounded detail regi
   expect(portrait.detail).not.toBeNull();
   expect(portrait.nodes.at(-1)!.rect.y + portrait.nodes.at(-1)!.rect.h)
     .toBeLessThanOrEqual(portrait.detail!.y);
+});
+
+it('hit-tests the results Continue button from shared layout geometry', () => {
+  const layout = upgradeLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, 'weapons', UPGRADE_NODES);
+  const button = layout.resultsContinueButton;
+
+  expect(resultsControlAt(layout, { x: button.x + button.w / 2, y: button.y + button.h / 2 })).toBe('continue');
+  expect(resultsControlAt(layout, { x: layout.panel.x, y: layout.panel.y })).toBeNull();
+});
+
+it('hit-tests all tabs, node purchase/refund, and Start Next Wave from shared geometry', () => {
+  const layout = upgradeLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, 'defense', UPGRADE_NODES);
+  for (const [index, tab] of layout.tabs.entries()) {
+    expect(upgradeControlAt(layout, { x: tab.x + tab.w / 2, y: tab.y + tab.h / 2 }, new Set())).toEqual({ type: 'tab', index });
+  }
+  for (const [index, item] of layout.nodes.entries()) {
+    const point = { x: item.rect.x + item.rect.w / 2, y: item.rect.y + item.rect.h / 2 };
+    expect(upgradeControlAt(layout, point, new Set())).toEqual({ type: 'purchase', id: item.node.id, index });
+    expect(upgradeControlAt(layout, point, new Set([item.node.id]))).toEqual({ type: 'refund', id: item.node.id, index });
+  }
+  const button = layout.continueButton;
+  expect(upgradeControlAt(layout, { x: button.x + button.w / 2, y: button.y + button.h / 2 }, new Set())).toEqual({ type: 'continue' });
 });
 
 it('keeps portrait detail strictly above the footer ink box', () => {

@@ -3,6 +3,7 @@ import type { Intent } from '../core/input';
 import { ARENA_W, VIEW_H, VIEW_W, WATERLINE, SEA_BOTTOM } from './consts';
 import { composeWave, scoreTargetForWave, BASE_SCORE, AIR, GROUND, type SpawnKind } from './waves';
 import { defaultStats, type PlayerStats } from './upgrades';
+import type { PostWaveView } from './post-wave';
 import type { WavePerformance } from './wave-rating';
 import { resolveBlasts, circlesOverlap, type Blast, type BlastTarget } from './collision';
 import { stepDepthCharge, steerHoming, clampSubDepth, stepPlayerVelocity } from './entities/physics';
@@ -49,7 +50,6 @@ export function impactParticleColor(terrain: Terrain, x: number): '#9fd8ff' | '#
 export class World {
   player: Player = { x: VIEW_W / 2, y: 60, vx: 0, vy: 0, hp: 100, iframes: 0, facing: 1, fireCd: 0, pdCd: 0, turretAngle: 0, muzzleT: 0 };
   stats: PlayerStats = defaultStats();
-  owned = new Set<string>();
   subs: Sub[] = [];
   charges: DepthCharge[] = [];
   shots: Projectile[] = [];
@@ -68,6 +68,8 @@ export class World {
   private waveHpStart = 0;
   private waveMaxHpStart = 0;
   private waveHadChargeTargets = false;
+  private postWaveCompletion: { wave: number; view: PostWaveView } | null = null;
+  private upgradesConfirmedWave = -1;
   missileStock = 0;
   sonarTimer = 0;
   sonarCycle = 0;
@@ -91,6 +93,22 @@ export class World {
 
   applyWaveRecovery(): void {
     this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.fieldRepair);
+  }
+
+  postWaveView(): PostWaveView | null {
+    return this.postWaveCompletion?.wave === this.wave
+      ? this.postWaveCompletion.view
+      : null;
+  }
+
+  recordPostWaveView(view: PostWaveView): void {
+    this.postWaveCompletion = { wave: this.wave, view };
+  }
+
+  claimUpgradeConfirmation(): boolean {
+    if (this.upgradesConfirmedWave === this.wave) return false;
+    this.upgradesConfirmedWave = this.wave;
+    return true;
   }
 
   get cleared(): boolean {

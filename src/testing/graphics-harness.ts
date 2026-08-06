@@ -7,8 +7,19 @@ import type { SpawnKind } from '../game/waves';
 import type { HelicopterPose } from '../render/helicopter';
 import type { QualityTier } from '../render/quality';
 import type { Insets } from '../render/viewport';
+import { buildPostWaveView, type PostWaveView } from '../game/post-wave';
+import { RunProgression } from '../game/run-progression';
+import type { UpgradeBranch, UpgradeId } from '../game/upgrade-tree';
 
-export type GraphicsHarnessScene = Biome | 'heavy-combat';
+export type ProgressionHarnessScene = 'results' | 'upgrade-tree';
+export type GraphicsHarnessScene = Biome | 'heavy-combat' | ProgressionHarnessScene;
+
+export interface ProgressionHarnessFixture {
+  progression: RunProgression;
+  postWaveView: PostWaveView;
+  branch: UpgradeBranch;
+  focusedNode: UpgradeId;
+}
 
 export interface GraphicsHarnessOptions {
   enabled: boolean;
@@ -41,6 +52,7 @@ const qualityTier = (value: string | null): QualityTier | undefined =>
 
 const harnessScene = (value: string | null): GraphicsHarnessScene | undefined =>
   value === 'sea' || value === 'coast' || value === 'inland' || value === 'heavy-combat'
+  || value === 'results' || value === 'upgrade-tree'
     ? value
     : undefined;
 
@@ -178,6 +190,28 @@ export class GraphicsCapture {
     }
     return `${rows.join('\n')}\n`;
   }
+}
+
+export function stageProgressionScene(scene: ProgressionHarnessScene): ProgressionHarnessFixture {
+  const postWaveView = buildPostWaveView(
+    { score: 36, accuracy: 24, survival: 27, total: 87, bonusPoint: true },
+    { base: 1, bonus: 1, total: 2 },
+    5,
+  );
+  if (scene === 'results') {
+    return {
+      progression: new RunProgression({ points: 5 }),
+      postWaveView,
+      branch: 'defense',
+      focusedNode: 'field-repair',
+    };
+  }
+
+  const progression = new RunProgression({ points: 7 });
+  progression.purchase('armor-1');
+  progression.confirm();
+  progression.purchase('field-repair');
+  return { progression, postWaveView, branch: 'defense', focusedNode: 'field-repair' };
 }
 
 const hpFor = (kind: SpawnKind): number => {

@@ -4,6 +4,8 @@ import { ARENA_W, VIEW_H, WATERLINE } from './consts';
 import { mulberry32 } from '../core/rng';
 import { generateTerrain, isWater } from './terrain';
 import { defaultStats } from './upgrades';
+import { confirmUpgrades, previewUpgrades } from './post-wave';
+import { RunProgression } from './run-progression';
 
 describe('scoreBlast', () => {
   it('adds depth bonus per kill', () => {
@@ -30,6 +32,41 @@ it('chooses impact visuals from terrain water state rather than impact height', 
 });
 
 describe('World', () => {
+  it('previews pending upgrade stats immediately and reverses them after a refund', () => {
+    const w = new World(mulberry32(1));
+    const progression = new RunProgression({ points: 1 });
+    w.player.hp = 50;
+
+    expect(progression.purchase('armor-1')).toBe(true);
+    previewUpgrades(w, progression);
+    expect(w.stats.maxHp).toBe(120);
+    expect(w.player.hp).toBe(60);
+
+    expect(progression.refund('armor-1')).toBe(true);
+    previewUpgrades(w, progression);
+    expect(w.stats.maxHp).toBe(100);
+    expect(w.player.hp).toBe(50);
+  });
+
+  it('confirms pending upgrades and applies wave recovery only once', () => {
+    const w = new World(mulberry32(1));
+    const progression = new RunProgression({ points: 3 });
+    w.startWave();
+    w.player.hp = 50;
+    progression.purchase('armor-1');
+    progression.purchase('field-repair');
+    const recovery = vi.spyOn(w, 'applyWaveRecovery');
+
+    confirmUpgrades(w, progression);
+    confirmUpgrades(w, progression);
+
+    expect(progression.pending.size).toBe(0);
+    expect(progression.confirmed).toEqual(new Set(['armor-1', 'field-repair']));
+    expect(w.stats.maxHp).toBe(120);
+    expect(w.player.hp).toBe(72);
+    expect(recovery).toHaveBeenCalledOnce();
+  });
+
   it('preserves health percentage when replacing derived stats', () => {
     const w = new World(mulberry32(1));
     w.player.hp = 50;

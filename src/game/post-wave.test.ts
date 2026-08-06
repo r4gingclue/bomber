@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { buildPostWaveView } from './post-wave';
+import { describe, expect, it, vi } from 'vitest';
+import { mulberry32 } from '../core/rng';
+import { completeWave, createRun, buildPostWaveView } from './post-wave';
 import { RunProgression } from './run-progression';
+import { World } from './world';
 import type { WaveRating } from './wave-rating';
 
 describe('buildPostWaveView', () => {
@@ -41,4 +43,42 @@ describe('buildPostWaveView', () => {
       balance: 7,
     });
   });
+});
+
+describe('completeWave', () => {
+  it('rates a strong clear and awards its two points exactly once', () => {
+    const world = new World(mulberry32(1));
+    const progression = new RunProgression();
+    const awardWave = vi.spyOn(progression, 'awardWave');
+    world.startWave();
+    world.score = 100_000;
+    world.drops = 1;
+    world.hitDrops = 1;
+    world.subs.length = 0;
+
+    const first = completeWave(world, progression);
+    const repeated = completeWave(world, progression);
+
+    expect(first.rating.total).toBeGreaterThanOrEqual(75);
+    expect(first.award).toEqual({ base: 1, bonus: 1, total: 2 });
+    expect(first.balance).toBe(2);
+    expect(repeated).toBe(first);
+    expect(progression.points).toBe(2);
+    expect(awardWave).toHaveBeenCalledOnce();
+    expect(awardWave).toHaveBeenCalledWith(first.rating.total);
+  });
+});
+
+it('creates independent world and progression state for every new run', () => {
+  const first = createRun(mulberry32(1));
+  first.progression.awardWave(100);
+  first.progression.purchase('armor-1');
+
+  const second = createRun(mulberry32(1));
+
+  expect(second.world).not.toBe(first.world);
+  expect(second.progression).not.toBe(first.progression);
+  expect(second.progression.points).toBe(0);
+  expect(second.progression.confirmed.size).toBe(0);
+  expect(second.progression.pending.size).toBe(0);
 });

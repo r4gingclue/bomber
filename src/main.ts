@@ -6,7 +6,15 @@ import { AudioSys } from './core/audio';
 import { mulberry32 } from './core/rng';
 import { World } from './game/world';
 import { StateMachine } from './game/state';
-import { drawCards, type UpgradeCard } from './game/upgrades';
+import {
+  completeWave,
+  confirmUpgrades,
+  createRun,
+  previewUpgrades,
+  type PostWaveView,
+} from './game/post-wave';
+import { RunProgression } from './game/run-progression';
+import { UPGRADE_NODES, type UpgradeBranch, type UpgradeId } from './game/upgrade-tree';
 import { Renderer } from './render/renderer';
 import { aimFromStick } from './game/aim';
 import { clientToWorld, fitViewport, type Insets } from './render/viewport';
@@ -20,6 +28,8 @@ import type {
   GraphicsCapture,
   GraphicsHarnessOptions,
   GraphicsHarnessScene,
+  ProgressionHarnessFixture,
+  ProgressionHarnessScene,
 } from './testing/graphics-harness';
 import type { HelicopterPose } from './render/helicopter';
 import { AUDIO_MANIFEST } from './audio/manifest';
@@ -27,6 +37,14 @@ import { SoundBank } from './audio/sound-bank';
 import { MusicDirector } from './audio/music-director';
 import { WebAudioMusicScheduler } from './audio/web-audio-scheduler';
 import { audioSettingsHit } from './render/audio-settings';
+import {
+  resultsControlAt,
+  upgradeControlAt,
+  upgradeLayout,
+  type UpgradeLayout,
+} from './render/upgrade-layout';
+import { buildUpgradeTreeView } from './render/upgrade-view';
+import { moveUpgradeFocus, type UpgradeFocus } from './core/upgrade-navigation';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -56,10 +74,12 @@ let harness: GraphicsHarnessOptions = {
 const effectivePixelRatio = () => harness.pixelRatio || window.devicePixelRatio || 1;
 let viewport = fitViewport(innerWidth, innerHeight, safeInsets());
 let screenLayout: UiLayout = uiLayout(innerWidth, innerHeight, safeInsets(), true, viewport);
+let screenInsets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
 let input: Input | null = null;
 const pixelRatioMonitor = new DevicePixelRatioMonitor(effectivePixelRatio());
 function resize(): void {
   const insets = safeInsets();
+  screenInsets = insets;
   viewport = fitViewport(innerWidth, innerHeight, insets);
   Object.assign(canvas.style, {
     position: 'fixed',
@@ -103,10 +123,12 @@ async function boot(): Promise<void> {
   let stageVisualSceneHarness:
     ((
       world: World,
-      scene: Exclude<GraphicsHarnessScene, 'heavy-combat'>,
+      scene: Extract<GraphicsHarnessScene, 'sea' | 'coast' | 'inland'>,
       pose?: HelicopterPose,
       facing?: 1 | -1,
     ) => void) | null = null;
+  let stageProgressionSceneHarness:
+    ((scene: ProgressionHarnessScene) => ProgressionHarnessFixture) | null = null;
   if (import.meta.env.DEV) {
     const graphicsHarness = await import('./testing/graphics-harness');
     harness = graphicsHarness.readGraphicsHarnessOptions(window.location.search, true);
@@ -115,6 +137,7 @@ async function boot(): Promise<void> {
     splitSnapshotHarness = graphicsHarness.splitGraphicsSnapshot;
     stageHeavyCombatHarness = graphicsHarness.stageHeavyCombat;
     stageVisualSceneHarness = graphicsHarness.stageVisualScene;
+    stageProgressionSceneHarness = graphicsHarness.stageProgressionScene;
     resize();
   }
   const assets = await loadAssets(GRAPHICS_MANIFEST);
@@ -136,18 +159,88 @@ async function boot(): Promise<void> {
   document.addEventListener('visibilitychange', () => {
     void audio.setHidden(document.hidden);
   });
-  const state = new StateMachine();
+  let state = new StateMachine();
   const renderer = new Renderer(ctx, uiCtx, assets);
   const motion = reducedMotionFlag(window.matchMedia('(prefers-reduced-motion: reduce)'));
   const quality = new QualityMonitor();
 
-  let world = new World(mulberry32(Date.now() >>> 0));
-  let cards: UpgradeCard[] = [];
+  const initialRun = createRun(mulberry32(Date.now() >>> 0));
+  let world = initialRun.world;
+  let progression: RunProgression = initialRun.progression;
+  let postWaveView: PostWaveView | null = null;
+  let upgradeFocus: UpgradeFocus = { branch: 0, node: 0 };
   let elapsed = 0;
   let introT = 0;
   let harnessRestage = 0;
   let musicSampleT = 0;
   let creditsOpen = false;
+  const upgradeBranches: readonly UpgradeBranch[] = ['weapons', 'ordnance', 'defense', 'flight'];
+
+  const nodesForBranch = (branchIndex = upgradeFocus.branch) =>
+    UPGRADE_NODES.filter(node => node.branch === upgradeBranches[branchIndex]);
+  const focusedUpgradeId = (): UpgradeId | null =>
+    nodesForBranch()[upgradeFocus.node]?.id ?? null;
+  const progressionLayout = (): UpgradeLayout => upgradeLayout(
+    innerWidth,
+    innerHeight,
+    screenInsets,
+    upgradeBranches[upgradeFocus.branch],
+    UPGRADE_NODES,
+  );
+
+  function discardPhaseQueues(): void {
+    activeInput.discardPhaseQueues();
+  }
+
+  function focusBranch(branch: number): void {
+    upgradeFocus = { branch, node: 0 };
+  }
+
+  function moveFocus(action: 'left' | 'right' | 'up' | 'down'): void {
+    upgradeFocus = moveUpgradeFocus({
+      ...upgradeFocus,
+      nodeCounts: upgradeBranches.map((_, index) => nodesForBranch(index).length),
+    }, action);
+  }
+
+  function changeFocusedUpgrade(action: 'purchase' | 'refund'): void {
+    const id = focusedUpgradeId();
+    if (!id) return;
+    const changed = action === 'purchase'
+      ? progression.purchase(id)
+      : progression.refund(id);
+    if (!changed) return;
+    previewUpgrades(world, progression);
+    audio.handle(action === 'purchase' ? 'upgrade-selected' : 'ui-confirm');
+  }
+
+  function acceptResults(): void {
+    state.resultsAccepted();
+    discardPhaseQueues();
+    audio.handle('ui-confirm');
+  }
+
+  function startNextWave(): void {
+    const actComplete = world.actComplete;
+    confirmUpgrades(world, progression);
+    state.upgradesConfirmed(actComplete);
+    postWaveView = null;
+    if (actComplete) {
+      world.startAct();
+      introT = 2;
+    } else {
+      world.startWave();
+      audio.handle('wave-start');
+    }
+    discardPhaseQueues();
+    audio.handle('ui-confirm');
+  }
+
+  function returnToMenu(): void {
+    state.toMenu();
+    discardPhaseQueues();
+    audio.handle('ui-confirm');
+  }
 
   activeInput.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
   activeInput.attach(uiCanvas);
@@ -168,40 +261,33 @@ async function boot(): Promise<void> {
       else startRun();
     }
     else if (state.phase === 'gameover') {
-      state.toMenu();
-      audio.handle('ui-confirm');
+      returnToMenu();
+    } else if (state.phase === 'results') {
+      if (resultsControlAt(progressionLayout(), { x: clientX, y: clientY })) acceptResults();
     } else if (state.phase === 'upgrade') {
-      cards.forEach((_, i) => {
-        const r = screenLayout.cards[i];
-        if (clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h) pickCard(i);
-      });
+      const hit = upgradeControlAt(
+        progressionLayout(),
+        { x: clientX, y: clientY },
+        progression.pending,
+      );
+      if (hit?.type === 'tab') focusBranch(hit.index);
+      else if (hit?.type === 'purchase' || hit?.type === 'refund') {
+        upgradeFocus = { branch: upgradeFocus.branch, node: hit.index };
+        changeFocusedUpgrade(hit.type);
+      } else if (hit?.type === 'continue') startNextWave();
     }
   };
 
   function startRun(): void {
-    world = new World(mulberry32(Date.now() >>> 0));
+    const run = createRun(mulberry32(Date.now() >>> 0));
+    world = run.world;
+    progression = run.progression;
+    postWaveView = null;
+    upgradeFocus = { branch: 0, node: 0 };
     world.startWave();
     state.start();
+    discardPhaseQueues();
     audio.handle('wave-start');
-  }
-
-  function pickCard(i: number): void {
-    const card = cards[i];
-    if (!card) return;
-    const stats = { ...world.stats };
-    card.apply(stats);
-    world.setStats(stats);
-    world.owned.add(card.id);
-    world.applyWaveRecovery();
-    if (world.actComplete) {
-      world.startAct();
-      state.toActIntro();
-      introT = 2;
-    } else {
-      state.cardPicked();
-      world.startWave();
-    }
-    audio.handle('upgrade-selected');
   }
 
   window.addEventListener('keydown', e => {
@@ -235,14 +321,30 @@ async function boot(): Promise<void> {
         if (intent.sfxUp) audio.setSfxVolume((audio.preferences.sfx + 0.1) % 1.1);
       }
       if (activeInput.consumeConfirm()) {
-        if (state.phase === 'gameover') { state.toMenu(); audio.handle('ui-confirm'); }
+        if (state.phase === 'gameover') returnToMenu();
         else startRun();
       }
       return;
     }
+    if (state.phase === 'results') {
+      const confirm = activeInput.consumeConfirm();
+      const action = activeInput.consumeUpgradeAction();
+      if (confirm || action === 'select' || action === 'continue') acceptResults();
+      else if (action) discardPhaseQueues();
+      return;
+    }
     if (state.phase === 'upgrade') {
-      const k = activeInput.consumeCardKey();
-      if (k >= 0) pickCard(k);
+      const action = activeInput.consumeUpgradeAction();
+      if (action === 'left' || action === 'right' || action === 'up' || action === 'down') {
+        moveFocus(action);
+      } else if (action === 'select') {
+        changeFocusedUpgrade('purchase');
+      } else if (action === 'refund') {
+        changeFocusedUpgrade('refund');
+      } else if (action === 'continue') {
+        startNextWave();
+      }
+      if (action) discardPhaseQueues();
       return;
     }
     if (state.phase === 'actIntro') {
@@ -250,6 +352,8 @@ async function boot(): Promise<void> {
       if (introT <= 0) {
         state.introDone();
         world.startWave();
+        discardPhaseQueues();
+        audio.handle('wave-start');
       }
       return;
     }
@@ -274,18 +378,45 @@ async function boot(): Promise<void> {
     world.events.length = 0;
     if (world.player.hp <= 0) {
       state.died();
+      progression.reset();
+      previewUpgrades(world, progression);
+      postWaveView = null;
+      discardPhaseQueues();
       return;
     }
     if (world.cleared) {
+      postWaveView = completeWave(world, progression);
       state.waveCleared();
-      cards = drawCards(mulberry32((Date.now() ^ world.wave * 7919) >>> 0), world.owned, 3, world.act);
+      discardPhaseQueues();
       audio.handle('wave-clear');
     }
+  }
+
+  function stageProgressionHarnessView(scene: ProgressionHarnessScene): void {
+    const fixture = stageProgressionSceneHarness?.(scene);
+    if (!fixture) return;
+    const run = createRun(mulberry32(0x5ea));
+    world = run.world;
+    progression = fixture.progression;
+    postWaveView = fixture.postWaveView;
+    previewUpgrades(world, progression);
+    upgradeFocus = {
+      branch: upgradeBranches.indexOf(fixture.branch),
+      node: UPGRADE_NODES
+        .filter(node => node.branch === fixture.branch)
+        .findIndex(node => node.id === fixture.focusedNode),
+    };
+    state = new StateMachine();
+    state.start();
+    state.waveCleared();
+    if (scene === 'upgrade-tree') state.resultsAccepted();
+    discardPhaseQueues();
   }
 
   if (harness.enabled) {
     const stage = (scene: NonNullable<typeof harness.scene>) => {
       if (scene === 'heavy-combat') stageHeavyCombatHarness?.(world);
+      else if (scene === 'results' || scene === 'upgrade-tree') stageProgressionHarnessView(scene);
       else stageVisualSceneHarness?.(world, scene, harness.playerPose, harness.playerFacing);
     };
     (window as unknown as {
@@ -324,14 +455,18 @@ async function boot(): Promise<void> {
   }
 
   if (harness.scene) {
-    startRun();
-    if (harness.scene === 'heavy-combat') stageHeavyCombatHarness?.(world);
-    else stageVisualSceneHarness?.(
-      world,
-      harness.scene,
-      harness.playerPose,
-      harness.playerFacing,
-    );
+    if (harness.scene === 'results' || harness.scene === 'upgrade-tree') {
+      stageProgressionHarnessView(harness.scene);
+    } else {
+      startRun();
+      if (harness.scene === 'heavy-combat') stageHeavyCombatHarness?.(world);
+      else stageVisualSceneHarness?.(
+        world,
+        harness.scene,
+        harness.playerPose,
+        harness.playerFacing,
+      );
+    }
   }
 
   const loop = new Loop(
@@ -340,10 +475,13 @@ async function boot(): Promise<void> {
       if (pixelRatioMonitor.changed(effectivePixelRatio())) resize();
       const renderTier = harness.qualityTier ?? quality.tier;
       const renderStart = performance.now();
+      const branch = upgradeBranches[upgradeFocus.branch];
+      const overlayLayout = state.phase === 'results' || state.phase === 'upgrade'
+        ? progressionLayout()
+        : undefined;
       renderer.draw(
         world,
         state.phase,
-        cards,
         elapsed,
         activeInput.touchSeen || harness.touchUi,
         renderTier,
@@ -355,6 +493,14 @@ async function boot(): Promise<void> {
           sfx: audio.preferences.sfx,
           muted: audio.muted,
           creditsOpen,
+        },
+        {
+          points: progression.points,
+          layout: overlayLayout,
+          results: state.phase === 'results' ? postWaveView ?? undefined : undefined,
+          tree: state.phase === 'upgrade'
+            ? buildUpgradeTreeView(progression, branch, focusedUpgradeId())
+            : undefined,
         },
       );
       const renderEnd = performance.now();

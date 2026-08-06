@@ -6,6 +6,7 @@ import {
   readGraphicsHarnessOptions,
   splitGraphicsSnapshot,
   stageHeavyCombat,
+  stageProgressionScene,
   stageVisualScene,
 } from './graphics-harness';
 import { helicopterPose } from '../render/helicopter';
@@ -48,6 +49,28 @@ describe('readGraphicsHarnessOptions', () => {
       snapshot: true,
     });
   });
+
+  it.each(['results', 'upgrade-tree'] as const)('accepts the %s progression scene', scene => {
+    expect(readGraphicsHarnessOptions(`?harness=1&scene=${scene}`, true).scene).toBe(scene);
+  });
+});
+
+it('stages deterministic results and upgrade-tree progression scenes', () => {
+  const results = stageProgressionScene('results');
+  expect(results.postWaveView).toEqual({
+    rating: { score: 36, accuracy: 24, survival: 27, total: 87, bonusPoint: true },
+    award: { base: 1, bonus: 1, total: 2 },
+    balance: 5,
+  });
+  expect(results.progression.points).toBe(5);
+
+  const upgrade = stageProgressionScene('upgrade-tree');
+  expect(upgrade.branch).toBe('defense');
+  expect(upgrade.focusedNode).toBe('field-repair');
+  expect(upgrade.progression.confirmed).toEqual(new Set(['armor-1']));
+  expect(upgrade.progression.pending).toEqual(new Set(['field-repair']));
+  expect(upgrade.progression.points).toBe(4);
+  expect(upgrade.progression).not.toBe(results.progression);
 });
 
 it('captures delivered and render timing as separate fields', () => {

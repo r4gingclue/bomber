@@ -15,17 +15,11 @@ export class StateMachine {
   upgradesConfirmed(actComplete: boolean): void {
     if (this.phase === 'upgrade') this.phase = actComplete ? 'actIntro' : 'playing';
   }
-  cardPicked(): void {
-    this.upgradesConfirmed(false);
-  }
   died(): void {
     if (this.phase === 'playing') this.phase = 'gameover';
   }
   toMenu(): void {
     if (this.phase === 'gameover') this.phase = 'menu';
-  }
-  toActIntro(): void {
-    this.upgradesConfirmed(true);
   }
   introDone(): void {
     if (this.phase === 'actIntro') this.phase = 'playing';

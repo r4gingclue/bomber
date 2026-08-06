@@ -86,7 +86,7 @@ it('combines standard gamepad movement, aim, and actions with input intent', () 
   expect(input.gamepadConnected).toBe(true);
 });
 
-it('queues gamepad confirm and upgrade-card edges for phase handling', () => {
+it('queues gamepad confirm and semantic select edges for phase handling', () => {
   let current = gamepad([0, 0, 0, 0], []);
   const input = new Input(new GamepadInput(() => [current]));
   input.poll();
@@ -95,8 +95,49 @@ it('queues gamepad confirm and upgrade-card edges for phase handling', () => {
 
   expect(input.consumeConfirm()).toBe(true);
   expect(input.consumeConfirm()).toBe(false);
-  expect(input.consumeCardKey()).toBe(0);
-  expect(input.consumeCardKey()).toBe(-1);
+  expect(input.consumeUpgradeAction()).toBe('select');
+  expect(input.consumeUpgradeAction()).toBeNull();
+});
+
+it.each([
+  ['Enter', 'confirm'],
+  ['Space', 'gameplay'],
+] as const)('discards stale %s keyboard queues at a phase transition', (code, source) => {
+  const { input, keyboard } = setupInput();
+  keyboard.dispatchEvent(event('keydown', { code, repeat: false }));
+
+  if (source === 'confirm') expect(input.consumeConfirm()).toBe(true);
+  else expect(input.poll().drop).toBe(true);
+  input.discardPhaseQueues();
+
+  expect(input.consumeConfirm()).toBe(false);
+  expect(input.consumeUpgradeAction()).toBeNull();
+  expect(input.poll().drop).toBe(false);
+});
+
+it.each([
+  ['A', 0, 'select', 'confirm'],
+  ['B', 1, 'refund', 'gameplay'],
+] as const)('discards stale gamepad %s queues without inventing a held-button edge', (_label, button, action, source) => {
+  let current = gamepad([0, 0, 0, 0], []);
+  const input = new Input(new GamepadInput(() => [current]));
+  input.poll();
+  current = gamepad([0, 0, 0, 0], [button]);
+  const intent = input.poll();
+
+  if (source === 'confirm') expect(input.consumeConfirm()).toBe(true);
+  else expect(intent.drop).toBe(true);
+  input.discardPhaseQueues();
+
+  input.poll();
+  expect(input.consumeConfirm()).toBe(false);
+  expect(input.consumeUpgradeAction()).toBeNull();
+
+  current = gamepad([0, 0, 0, 0], []);
+  input.poll();
+  current = gamepad([0, 0, 0, 0], [button]);
+  input.poll();
+  expect(input.consumeUpgradeAction()).toBe(action);
 });
 
 it('queues semantic keyboard upgrade actions on press edges', () => {
@@ -267,7 +308,6 @@ it('clears every held and queued input state on blur', () => {
   keyboard.dispatchEvent(event('keydown', { code: 'KeyE', repeat: false }));
   keyboard.dispatchEvent(event('keydown', { code: 'Space', repeat: false }));
   keyboard.dispatchEvent(event('keydown', { code: 'Enter', repeat: false }));
-  keyboard.dispatchEvent(event('keydown', { code: 'Digit2', repeat: false }));
   canvas.dispatchEvent(event('pointerdown', {
     pointerType: 'mouse',
     pointerId: 1,
@@ -313,6 +353,5 @@ it('clears every held and queued input state on blur', () => {
   expect(input.aimCanvasPoint()).toBeNull();
   expect(input.aimStickDir()).toBeNull();
   expect(input.consumeConfirm()).toBe(false);
-  expect(input.consumeCardKey()).toBe(-1);
   expect(input.consumeUpgradeAction()).toBeNull();
 });

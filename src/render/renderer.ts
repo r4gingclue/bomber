@@ -1,9 +1,8 @@
 import { RENDER_H, RENDER_SCALE, RENDER_W, VIEW_W, VIEW_H, WATERLINE } from '../game/consts';
 import type { World } from '../game/world';
 import type { Phase } from '../game/state';
-import type { UpgradeCard } from '../game/upgrades';
 import type { PostWaveView } from '../game/post-wave';
-import { uiLayout, type UiLayout } from './ui-layout';
+import type { UiLayout } from './ui-layout';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS, isWater } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
@@ -29,11 +28,6 @@ export interface ProgressionRenderView {
   layout?: UpgradeLayout;
   results?: PostWaveView;
   tree?: UpgradeTreeView;
-}
-
-export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
-  const card = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, false).cards[i];
-  return { x: card.x / RENDER_SCALE, y: card.y / RENDER_SCALE, w: card.w / RENDER_SCALE, h: card.h / RENDER_SCALE };
 }
 
 interface CloudSpec { x: number; y: number; w: number }
@@ -82,7 +76,6 @@ export class Renderer {
   draw(
     world: World,
     phase: Phase,
-    cards: UpgradeCard[],
     t: number,
     touchUI: boolean,
     qualityTier: QualityTier,
@@ -159,7 +152,7 @@ export class Renderer {
     this.drawGrading(world, tier);
 
     this.damageFlash(world, reducedFlash, debugDamageFlash);
-    this.drawScreenUi(world, phase, cards, touchUI, layout, audioSettings, progressionView);
+    this.drawScreenUi(world, phase, touchUI, layout, audioSettings, progressionView);
     if (phase === 'menu') this.menu();
     if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
@@ -799,7 +792,6 @@ export class Renderer {
   private drawScreenUi(
     world: World,
     phase: Phase,
-    _cards: UpgradeCard[],
     touchUI: boolean,
     layout: UiLayout,
     audioSettings?: AudioSettingsView,

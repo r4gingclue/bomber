@@ -44,7 +44,6 @@ export class Input {
   private dropQueued = false;
   private missileQueued = false;
   private confirmQueued = false;
-  private cardKeyQueued = -1;
   private upgradeActionQueued: UpgradeAction | null = null;
   private mouseFire = false;
   private touchFireQueued = false;
@@ -75,9 +74,6 @@ export class Input {
       if (e.code === 'Space') { this.dropQueued = true; e.preventDefault(); }
       if (e.code === 'KeyE') this.missileQueued = true;
       if (e.code === 'Enter') this.confirmQueued = true;
-      if (e.code === 'Digit1') this.cardKeyQueued = 0;
-      if (e.code === 'Digit2') this.cardKeyQueued = 1;
-      if (e.code === 'Digit3') this.cardKeyQueued = 2;
       const upgradeAction = keyboardUpgradeAction(e.code);
       if (upgradeAction) {
         this.upgradeActionQueued = upgradeAction;
@@ -150,17 +146,21 @@ export class Input {
   /** Clears held and queued intent when the page loses interaction ownership. */
   resetTransient(): void {
     this.keys.clear();
-    this.dropQueued = false;
-    this.missileQueued = false;
-    this.confirmQueued = false;
-    this.cardKeyQueued = -1;
-    this.upgradeActionQueued = null;
+    this.discardPhaseQueues();
     this.mouseFire = false;
-    this.touchFireQueued = false;
     this.firePointers.clear();
     this.stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
     this.aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
     this.mouseAim = null;
+  }
+
+  /** Discards edge-triggered actions when ownership moves to another game phase. */
+  discardPhaseQueues(): void {
+    this.dropQueued = false;
+    this.missileQueued = false;
+    this.confirmQueued = false;
+    this.upgradeActionQueued = null;
+    this.touchFireQueued = false;
   }
 
   poll(): Intent {
@@ -170,7 +170,6 @@ export class Input {
       ? { dx: gamepad.aim.x * 40, dy: gamepad.aim.y * 40 }
       : null;
     if (gamepad.confirmPressed) this.confirmQueued = true;
-    if (gamepad.cardPressed >= 0) this.cardKeyQueued = gamepad.cardPressed;
     if (gamepad.upgradeAction) this.upgradeActionQueued = gamepad.upgradeAction;
     let x = 0, y = 0;
     if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) x -= 1;
@@ -240,12 +239,6 @@ export class Input {
   consumeConfirm(): boolean {
     const c = this.confirmQueued;
     this.confirmQueued = false;
-    return c;
-  }
-
-  consumeCardKey(): number {
-    const c = this.cardKeyQueued;
-    this.cardKeyQueued = -1;
     return c;
   }
 

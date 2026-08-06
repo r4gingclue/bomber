@@ -1,4 +1,4 @@
-import type { UpgradeBranch, UpgradeNode } from '../game/upgrade-tree';
+import type { UpgradeBranch, UpgradeId, UpgradeNode } from '../game/upgrade-tree';
 import type { Insets } from './viewport';
 import type { UiRect } from './ui-layout';
 
@@ -26,6 +26,37 @@ export interface UpgradeLayout {
 }
 
 const BRANCH_COUNT = 4;
+
+const contains = (rect: UiRect, point: { x: number; y: number }): boolean =>
+  point.x >= rect.x && point.x <= rect.x + rect.w
+  && point.y >= rect.y && point.y <= rect.y + rect.h;
+
+export function resultsControlAt(
+  layout: UpgradeLayout,
+  point: { x: number; y: number },
+): 'continue' | null {
+  return contains(layout.resultsContinueButton, point) ? 'continue' : null;
+}
+
+export type UpgradeLayoutControl =
+  | { type: 'tab'; index: number }
+  | { type: 'purchase' | 'refund'; id: UpgradeId; index: number }
+  | { type: 'continue' };
+
+export function upgradeControlAt(
+  layout: UpgradeLayout,
+  point: { x: number; y: number },
+  pending: ReadonlySet<UpgradeId>,
+): UpgradeLayoutControl | null {
+  const tab = layout.tabs.findIndex(rect => contains(rect, point));
+  if (tab >= 0) return { type: 'tab', index: tab };
+  const node = layout.nodes.findIndex(item => contains(item.rect, point));
+  if (node >= 0) {
+    const id = layout.nodes[node].node.id;
+    return { type: pending.has(id) ? 'refund' : 'purchase', id, index: node };
+  }
+  return contains(layout.continueButton, point) ? { type: 'continue' } : null;
+}
 
 function centeredRect(x: number, y: number, w: number, h: number, maxW: number, maxH: number): UiRect {
   const width = Math.max(1, Math.min(maxW, w));

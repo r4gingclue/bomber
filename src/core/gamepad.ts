@@ -24,7 +24,6 @@ export interface GamepadState {
   missilePressed: boolean;
   sfxPressed: boolean;
   confirmPressed: boolean;
-  cardPressed: number;
   upgradeAction: UpgradeAction | null;
 }
 
@@ -65,7 +64,6 @@ export class GamepadInput {
     if (moveX === 0) moveX = Number(pressed.has(15)) - Number(pressed.has(14));
     if (moveY === 0) moveY = Number(pressed.has(13)) - Number(pressed.has(12));
 
-    const cardPressed = [0, 1, 2].findIndex(newlyPressed);
     const state: GamepadState = {
       connected: true,
       index: pad.index,
@@ -76,7 +74,6 @@ export class GamepadInput {
       missilePressed: newlyPressed(2) || newlyPressed(5),
       sfxPressed: newlyPressed(3),
       confirmPressed: newlyPressed(0) || newlyPressed(9),
-      cardPressed,
       upgradeAction: upgradeActionFor(newlyPressed),
     };
     this.previousButtons = pressed;
@@ -112,7 +109,6 @@ function neutralState(): GamepadState {
     missilePressed: false,
     sfxPressed: false,
     confirmPressed: false,
-    cardPressed: -1,
     upgradeAction: null,
   };
 }

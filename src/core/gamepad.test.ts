@@ -67,14 +67,14 @@ describe('GamepadInput', () => {
     expect(input.poll()).toMatchObject({ dropPressed: false, missilePressed: false });
   });
 
-  it('maps A/Start to confirm and face buttons to upgrade cards on press', () => {
+  it('maps A/Start to confirm on press edges', () => {
     let current = pad();
     const input = new GamepadInput(() => [current]);
     input.poll();
     current = pad([0, 0, 0, 0], [0, 9]);
 
-    expect(input.poll()).toMatchObject({ confirmPressed: true, cardPressed: 0 });
-    expect(input.poll()).toMatchObject({ confirmPressed: false, cardPressed: -1 });
+    expect(input.poll()).toMatchObject({ confirmPressed: true });
+    expect(input.poll()).toMatchObject({ confirmPressed: false });
   });
 
   it('maps D-pad and shoulder press edges to upgrade focus actions', () => {
@@ -148,7 +148,6 @@ describe('GamepadInput', () => {
       missilePressed: false,
       sfxPressed: false,
       confirmPressed: false,
-      cardPressed: -1,
       upgradeAction: null,
     });
   });

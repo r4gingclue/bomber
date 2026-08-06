@@ -61,15 +61,6 @@ it('uses compact desktop controls and pins the HUD to the safe top-left edge', (
   expect(l.move.r).toBe(38);
 });
 
-it('keeps upgrade cards inside narrow safe-area bounds', () => {
-  const l = uiLayout(960, 540, { top: 47, right: 160, bottom: 34, left: 160 }, false);
-
-  expect(l.cards[0].x).toBeGreaterThanOrEqual(160);
-  expect(l.cards[2].x + l.cards[2].w).toBeLessThanOrEqual(800);
-  expect(l.cards[0].y).toBeGreaterThanOrEqual(47);
-  expect(l.cards[0].y + l.cards[0].h).toBeLessThanOrEqual(506);
-});
-
 it.each([
   [390, 844],
   [320, 568],

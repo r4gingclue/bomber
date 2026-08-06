@@ -12,7 +12,6 @@ export interface UiLayout {
   move: UiCircle;
   fire: UiCircle;
   drop: UiCircle;
-  cards: UiRect[];
   controlsInLetterbox: boolean;
   controlOpacity: number;
   gameplaySafe: UiRect;
@@ -48,14 +47,7 @@ export function uiLayout(
   touch: boolean,
   gameViewport?: ViewportRect,
 ): UiLayout {
-  const gap = 28;
   const availableW = w - i.left - i.right;
-  const availableH = h - i.top - i.bottom;
-  const cardW = Math.min(240, Math.max(1, (availableW - 40 - gap * 2) / 3));
-  const cardH = Math.min(220, Math.max(1, availableH - 40));
-  const cardsW = cardW * 3 + gap * 2;
-  const cardsX = i.left + (availableW - cardsW) / 2;
-  const cardsY = i.top + (availableH - cardH) / 2;
   const hudW = Math.max(1, Math.min(250, availableW - 40));
   const battlefield = battlefieldRect(w, h, i, gameViewport);
   const safeRight = w - i.right;
@@ -147,9 +139,6 @@ export function uiLayout(
     move,
     fire,
     drop,
-    cards: Array.from({ length: 3 }, (_, index) => ({
-      x: cardsX + index * (cardW + gap), y: cardsY, w: cardW, h: cardH,
-    })),
     controlsInLetterbox,
     controlOpacity,
     gameplaySafe: {
