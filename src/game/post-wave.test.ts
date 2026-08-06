@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mulberry32 } from '../core/rng';
-import { completeWave, createRun, buildPostWaveView } from './post-wave';
+import { buildPostWaveView, completeWave, confirmUpgrades, createRun } from './post-wave';
 import { RunProgression } from './run-progression';
 import { World } from './world';
 import type { WaveRating } from './wave-rating';
@@ -67,6 +67,25 @@ describe('completeWave', () => {
     expect(awardWave).toHaveBeenCalledOnce();
     expect(awardWave).toHaveBeenCalledWith(first.rating.total);
   });
+});
+
+it('ignores the whole repeated same-wave upgrade confirmation transaction', () => {
+  const world = new World(mulberry32(1));
+  const progression = new RunProgression({ points: 3 });
+  world.startWave();
+  world.player.hp = 50;
+  progression.purchase('armor-1');
+  confirmUpgrades(world, progression);
+  const confirmedStats = world.stats;
+
+  expect(progression.purchase('armor-2')).toBe(true);
+  confirmUpgrades(world, progression);
+
+  expect(progression.confirmed).toEqual(new Set(['armor-1']));
+  expect(progression.pending).toEqual(new Set(['armor-2']));
+  expect(world.stats).toBe(confirmedStats);
+  expect(world.stats.maxHp).toBe(120);
+  expect(world.player.hp).toBe(60);
 });
 
 it('creates independent world and progression state for every new run', () => {

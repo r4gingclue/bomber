@@ -57,6 +57,21 @@ describe('GamepadInput', () => {
     expect(input.poll().fire).toBe(false);
   });
 
+  it('latches a UI-consumed A alias out of gameplay until release', () => {
+    let current = pad([0, 0, 0, 0], [0]);
+    const input = new GamepadInput(() => [current]);
+
+    expect(input.poll().fire).toBe(true);
+    input.latchGameplayAliasesUntilRelease();
+    expect(input.poll().fire).toBe(false);
+    expect(input.poll().fire).toBe(false);
+
+    current = pad();
+    expect(input.poll().fire).toBe(false);
+    current = pad([0, 0, 0, 0], [0]);
+    expect(input.poll().fire).toBe(true);
+  });
+
   it('emits drop and missile only on new button presses', () => {
     let current = pad();
     const input = new GamepadInput(() => [current]);

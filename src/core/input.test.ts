@@ -140,6 +140,24 @@ it.each([
   expect(input.consumeUpgradeAction()).toBe(action);
 });
 
+it('does not fire in playing while the A button used to start remains held', () => {
+  let current = gamepad([0, 0, 0, 0], []);
+  const input = new Input(new GamepadInput(() => [current]));
+  input.poll();
+  current = gamepad([0, 0, 0, 0], [0]);
+
+  expect(input.poll().fire).toBe(true);
+  expect(input.consumeConfirm()).toBe(true);
+  input.discardPhaseQueues();
+
+  expect(input.poll().fire).toBe(false);
+  expect(input.poll().fire).toBe(false);
+  current = gamepad([0, 0, 0, 0], []);
+  expect(input.poll().fire).toBe(false);
+  current = gamepad([0, 0, 0, 0], [0]);
+  expect(input.poll().fire).toBe(true);
+});
+
 it('queues semantic keyboard upgrade actions on press edges', () => {
   const { input, keyboard } = setupInput();
 
@@ -199,6 +217,49 @@ it('queues DROP from its visible touch target', () => {
   canvas.dispatchEvent(event('pointerdown', { pointerType: 'touch', pointerId: 9, clientX: drop.x, clientY: drop.y }));
 
   expect(input.poll().drop).toBe(true);
+});
+
+it('does not reinterpret a consumed Start Next Wave mouse pointer as fire or aim', () => {
+  const { input, canvas } = setupInput();
+  let taps = 0;
+  input.isGamePoint = () => false;
+  input.onTap = () => {
+    taps++;
+    return true;
+  };
+
+  canvas.dispatchEvent(event('pointerdown', {
+    pointerType: 'mouse',
+    pointerId: 10,
+    clientX: 480,
+    clientY: 500,
+  }));
+
+  expect(taps).toBe(1);
+  expect(input.poll().fire).toBe(false);
+  expect(input.aimCanvasPoint()).toBeNull();
+});
+
+it('does not reinterpret consumed results Continue touches as drop or aim', () => {
+  const { input, canvas } = setupInput();
+  input.onTap = () => true;
+  const drop = touchControls().drop;
+
+  canvas.dispatchEvent(event('pointerdown', {
+    pointerType: 'touch',
+    pointerId: 11,
+    clientX: drop.x,
+    clientY: drop.y,
+  }));
+  canvas.dispatchEvent(event('pointerdown', {
+    pointerType: 'touch',
+    pointerId: 12,
+    clientX: 0,
+    clientY: 0,
+  }));
+
+  expect(input.poll().drop).toBe(false);
+  expect(input.aimStickDir()).toBeNull();
 });
 
 describe('missile input', () => {

@@ -33,9 +33,10 @@ export function previewUpgrades(world: World, progression: RunProgression): void
 }
 
 export function confirmUpgrades(world: World, progression: RunProgression): void {
+  if (!world.claimUpgradeConfirmation()) return;
   previewUpgrades(world, progression);
   progression.confirm();
-  if (world.claimUpgradeConfirmation()) world.applyWaveRecovery();
+  world.applyWaveRecovery();
 }
 
 export function createRun(rng: Rng): { world: World; progression: RunProgression } {

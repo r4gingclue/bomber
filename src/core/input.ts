@@ -57,7 +57,7 @@ export class Input {
   touchSeen = false;
   gamepadConnected = false;
   /** main.ts sets this to receive screen-space taps for UI hit testing */
-  onTap: ((cx: number, cy: number) => void) | null = null;
+  onTap: ((cx: number, cy: number) => boolean) | null = null;
   /** main.ts sets this to convert client coords → simulation coords */
   toCanvas: ((x: number, y: number) => { x: number; y: number }) | null = null;
   /** main.ts uses this to keep mouse clicks outside the game viewport inert. */
@@ -86,16 +86,15 @@ export class Input {
 
     el.addEventListener('pointerdown', e => {
       this.onGesture?.();
+      if (e.pointerType !== 'mouse') this.touchSeen = true;
+      if (this.onTap?.(e.clientX, e.clientY)) return;
       const canvasPt = this.toCanvas ? this.toCanvas(e.clientX, e.clientY) : null;
       if (e.pointerType === 'mouse') {
         if (this.isGamePoint && !this.isGamePoint(e.clientX, e.clientY)) return;
-        if (this.onTap) this.onTap(e.clientX, e.clientY);
         this.mouseFire = true;
         if (canvasPt) this.mouseAim = canvasPt;
         return;
       }
-      if (this.onTap) this.onTap(e.clientX, e.clientY);
-      this.touchSeen = true;
       const controls = this.controls;
       if (inCircle(e.clientX, e.clientY, controls.move)) {
         this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
@@ -156,6 +155,7 @@ export class Input {
 
   /** Discards edge-triggered actions when ownership moves to another game phase. */
   discardPhaseQueues(): void {
+    this.gamepad.latchGameplayAliasesUntilRelease();
     this.dropQueued = false;
     this.missileQueued = false;
     this.confirmQueued = false;

@@ -259,11 +259,14 @@ async function boot(): Promise<void> {
       else if (hit?.control === 'mute') audio.toggleMute();
       else if (hit?.control === 'credits') creditsOpen = !creditsOpen;
       else startRun();
+      return true;
     }
     else if (state.phase === 'gameover') {
       returnToMenu();
+      return true;
     } else if (state.phase === 'results') {
       if (resultsControlAt(progressionLayout(), { x: clientX, y: clientY })) acceptResults();
+      return true;
     } else if (state.phase === 'upgrade') {
       const hit = upgradeControlAt(
         progressionLayout(),
@@ -275,7 +278,9 @@ async function boot(): Promise<void> {
         upgradeFocus = { branch: upgradeFocus.branch, node: hit.index };
         changeFocusedUpgrade(hit.type);
       } else if (hit?.type === 'continue') startNextWave();
+      return true;
     }
+    return state.phase !== 'playing';
   };
 
   function startRun(): void {
