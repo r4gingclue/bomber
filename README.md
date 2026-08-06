@@ -15,12 +15,15 @@ assets or code ship in this game.
 ## Controls
 
 - Move: WASD / arrows · Drop charge: Space · Cannon: F or mouse · Mute: M
+- Menu audio: drag/tap the Music and SFX sliders · `[`/`]` adjusts Music ·
+  `-`/`=` adjusts SFX · C opens credits
 - Touch: visible MOVE circle = movement · unoccupied non-button touch area
   (normally right side) = aim stick · FIRE = tap for cannon, hold for missile ·
   DROP = depth charge
 - Gamepad (standard mapping): left stick / D-pad = movement · right stick = aim ·
   A / RT = cannon · B / LT = depth charge · X / RB = missile · A / Start =
-  confirm · A, B, X = choose upgrade cards 1, 2, 3
+  confirm · A, B, X = choose upgrade cards 1, 2, 3. On the menu, B toggles
+  mute, X raises Music, and Y raises SFX.
 
 Touch controls appear immediately on touch-first devices without a fine pointer
 or hover-capable mouse, and also appear after the first touch on hybrid devices.
@@ -30,6 +33,7 @@ Connected standard-mapping gamepads are detected automatically while the game ru
 
     npm test        # vitest unit tests (pure game logic)
     npm run build   # typecheck + production build to dist/
+    npm run audio:validate # provenance, license, files, codecs, and size budget
 
 ## Rendering
 
@@ -51,3 +55,9 @@ projectiles, aiming cues, hit feedback, terrain, or the HUD.
 See [the painted-graphics playtest](docs/testing/painted-graphics-playtest.md)
 for the release matrix and [the asset workflow](docs/assets/README.md) before
 adding or replacing artwork.
+
+The cinematic audio system uses independently saved Music/SFX levels, resilient
+buffered cues with procedural fallbacks, CC0 ambience, and synchronized adaptive
+combat stems. See [audio credits](docs/assets/AUDIO-CREDITS.md), the
+[audio ledger](docs/assets/audio-sources.json), and the
+[cinematic-audio playtest](docs/testing/cinematic-audio-playtest.md).

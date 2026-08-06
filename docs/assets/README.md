@@ -75,3 +75,21 @@ project-generated art; the reason is recorded in
 6. Add manifest/fallback coverage, inspect the result in every biome and quality
    tier where it appears, then run the full automated and archive gates in the
    painted-graphics playtest document.
+
+## Audio workflow
+
+Audio provenance is independent from the painted-graphics ledger. Every shipped
+Ogg is mapped to an approved source in
+[`audio-sources.json`](audio-sources.json), with human-readable acknowledgement
+in [`AUDIO-CREDITS.md`](AUDIO-CREDITS.md).
+
+- Prefer CC0; CC-BY requires a stable creator, source page, and complete credit.
+- Reject non-commercial, unclear, ripped, or standalone-redistribution-restricted
+  material for this web repository.
+- Keep archives and lossless working files under ignored `assets-source/audio/`.
+- Adaptive stems must come from one compatible family and share exact loop
+  timing. Do not layer unrelated tracks.
+- Preserve dynamics and procedural fallbacks; a missing asset must never block
+  gameplay.
+- Run `npm run audio:validate`, the full test suite, and a browser audition
+  before release.

@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "audio:validate": "node --test scripts/validate-audio-assets.node-test.mjs && node scripts/validate-audio-assets.mjs",
     "validate:heavy-combat": "node scripts/validate-heavy-combat-timing.mjs",
     "validate:graphics-archive": "node scripts/validate-graphics-archive.mjs",
     "validate:docs-links": "node scripts/validate-doc-links.mjs"
