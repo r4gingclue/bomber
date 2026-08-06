@@ -25,6 +25,7 @@ it.each([
     layout.panel,
     ...layout.tabs,
     ...layout.nodes.map(node => node.rect),
+    ...(layout.detail ? [layout.detail] : []),
     layout.continueButton,
     layout.resultsContinueButton,
   ]) {
@@ -51,6 +52,25 @@ it('uses a two-column node path on desktop and compact landscape', () => {
   expect(new Set(desktop.nodes.map(node => node.rect.x)).size).toBe(2);
   expect(new Set(landscape.nodes.map(node => node.rect.x)).size).toBe(2);
   expect(landscape.nodes[0].rect.h).toBeLessThan(desktop.nodes[0].rect.h);
+});
+
+it('reserves a focused-node detail region beside readable compact landscape cards', () => {
+  const layout = upgradeLayout(844, 390, { top: 0, right: 47, bottom: 21, left: 47 }, 'weapons', UPGRADE_NODES);
+
+  expect(layout.detail).not.toBeNull();
+  expect(Math.min(...layout.nodes.map(node => node.rect.h))).toBeGreaterThanOrEqual(32);
+  expect(layout.nodes.every(node => node.rect.x + node.rect.w <= layout.detail!.x)).toBe(true);
+  expect(layout.detail!.y + layout.detail!.h).toBeLessThan(layout.continueButton.y);
+});
+
+it('keeps desktop descriptions in cards and gives portrait a bounded detail region', () => {
+  const desktop = upgradeLayout(1920, 1080, { top: 0, right: 0, bottom: 0, left: 0 }, 'weapons', UPGRADE_NODES);
+  const portrait = upgradeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 }, 'weapons', UPGRADE_NODES);
+
+  expect(desktop.detail).toBeNull();
+  expect(portrait.detail).not.toBeNull();
+  expect(portrait.nodes.at(-1)!.rect.y + portrait.nodes.at(-1)!.rect.h)
+    .toBeLessThanOrEqual(portrait.detail!.y);
 });
 
 it('uses a single scroll-free node path in portrait', () => {

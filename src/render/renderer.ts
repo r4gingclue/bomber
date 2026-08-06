@@ -16,7 +16,13 @@ import { damageFlashMode } from './motion';
 import { projectileHasTrail, projectileRotation, projectileVelocityAngle } from './projectile';
 import { AUDIO_CREDIT_LINES, type AudioSettingsView } from './audio-settings';
 import type { UpgradeLayout } from './upgrade-layout';
-import { perkPointHudText, upgradeNodeWrapWidth, type UpgradeTreeView } from './upgrade-view';
+import {
+  buildUpgradeNodeRenderPlan,
+  perkPointHudText,
+  type UpgradeNodeView,
+  type UpgradeTextRegionPlan,
+  type UpgradeTreeView,
+} from './upgrade-view';
 
 export interface ProgressionRenderView {
   points: number;
@@ -1037,6 +1043,14 @@ export class Renderer {
       affordable: '#ffd866',
       locked: '#52606f',
     } as const;
+    if (layout.detail) {
+      ctx.fillStyle = '#0c1726';
+      ctx.fillRect(layout.detail.x, layout.detail.y, layout.detail.w, layout.detail.h);
+      ctx.strokeStyle = '#526b88';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(layout.detail.x + 0.5, layout.detail.y + 0.5, layout.detail.w - 1, layout.detail.h - 1);
+    }
+    let focusedDetail: { node: UpgradeNodeView; region: UpgradeTextRegionPlan } | undefined;
     for (const node of view.nodes) {
       const rect = rectById.get(node.id);
       if (!rect) continue;
@@ -1045,44 +1059,19 @@ export class Renderer {
       ctx.strokeStyle = node.focused ? '#fff2c6' : strokes[node.state];
       ctx.lineWidth = node.focused ? 3 : 1.5;
       ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
-
-      const compact = rect.h < 70;
-      const inset = (rect.w - upgradeNodeWrapWidth(rect)) / 2;
-      const textX = rect.x + inset;
-      const wrapWidth = upgradeNodeWrapWidth(rect);
-      const nameSize = compact ? 11 : 14;
-      const bodySize = compact ? 9 : 11;
-      const bodyLineHeight = bodySize + 2;
-      const nameY = rect.y + (compact ? 14 : 21);
-      this.text(node.name, textX, nameY, nameSize, '#e8f2ff', false, ctx);
-      this.rightText(
-        `${node.cost} ${node.cost === 1 ? 'pt' : 'pts'}`,
-        rect.x + rect.w - inset,
-        nameY,
-        nameSize,
-        '#ffd866',
+      const plan = buildUpgradeNodeRenderPlan(node, rect, layout.detail, (text, fontSize) => {
+        ctx.font = `${fontSize}px system-ui, sans-serif`;
+        return ctx.measureText(text).width;
+      });
+      this.drawUpgradeTextRegion(plan.card, node, strokes[node.state]);
+      if (plan.detail) focusedDetail = { node, region: plan.detail };
+    }
+    if (focusedDetail) {
+      this.drawUpgradeTextRegion(
+        focusedDetail.region,
+        focusedDetail.node,
+        strokes[focusedDetail.node.state],
       );
-
-      let bodyY = nameY + (compact ? 12 : 18);
-      bodyY = this.wrappedText(node.description, textX, bodyY, wrapWidth, bodySize, '#9fd8ff', bodyLineHeight);
-      const stateLabel = node.state === 'purchased'
-        ? 'PURCHASED'
-        : node.state === 'pending'
-          ? 'PENDING — SELECT TO REFUND'
-          : node.state === 'affordable'
-            ? 'AVAILABLE'
-            : node.reason;
-      if (stateLabel) {
-        this.wrappedText(
-          stateLabel,
-          textX,
-          Math.max(bodyY + 1, rect.y + rect.h - bodyLineHeight - 3),
-          wrapWidth,
-          compact ? 8 : 10,
-          node.state === 'locked' ? '#aeb8c5' : strokes[node.state],
-          compact ? 9 : 11,
-        );
-      }
     }
 
     const footerSize = panel.h < 430 || panel.w < 500 ? 10 : 13;
@@ -1108,34 +1097,30 @@ export class Renderer {
     ctx.textAlign = 'left';
   }
 
-  private wrappedText(
-    value: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    size: number,
-    color: string,
-    lineHeight: number,
-  ): number {
+  private drawUpgradeTextRegion(
+    region: UpgradeTextRegionPlan,
+    node: UpgradeNodeView,
+    stateColor: string,
+  ): void {
     const ctx = this.uiCtx;
-    ctx.fillStyle = color;
-    ctx.font = `${size}px system-ui, sans-serif`;
-    ctx.textAlign = 'left';
-    const words = value.split(/\s+/);
-    let line = '';
-    let lineY = y;
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (line && ctx.measureText(candidate).width > maxWidth) {
-        ctx.fillText(line, x, lineY);
-        line = word;
-        lineY += lineHeight;
-      } else {
-        line = candidate;
-      }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(region.rect.x, region.rect.y, region.rect.w, region.rect.h);
+    ctx.clip();
+    for (const line of region.lines) {
+      ctx.fillStyle = line.role === 'cost'
+        ? '#ffd866'
+        : line.role === 'description'
+          ? '#9fd8ff'
+          : line.role === 'status'
+            ? node.state === 'locked' ? '#aeb8c5' : stateColor
+            : '#e8f2ff';
+      ctx.font = `${line.fontSize}px system-ui, sans-serif`;
+      ctx.textAlign = line.align;
+      ctx.fillText(line.text, line.x, line.baseline);
     }
-    if (line) ctx.fillText(line, x, lineY);
-    return lineY;
+    ctx.restore();
+    ctx.textAlign = 'left';
   }
 
   private gameover(world: World): void {

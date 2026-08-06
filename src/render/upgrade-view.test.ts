@@ -5,7 +5,13 @@ import { RunProgression } from '../game/run-progression';
 import { UPGRADE_NODES } from '../game/upgrade-tree';
 import { Renderer } from './renderer';
 import { upgradeLayout } from './upgrade-layout';
-import { buildUpgradeTreeView, perkPointHudText } from './upgrade-view';
+import {
+  buildUpgradeNodeRenderPlan,
+  buildUpgradeTreeView,
+  perkPointHudText,
+  type UpgradeTextRegionPlan,
+} from './upgrade-view';
+import type { UiRect } from './ui-layout';
 
 it('marks nodes as purchased, pending, affordable, or locked with a reason', () => {
   const progression = new RunProgression({ points: 6 });
@@ -68,22 +74,114 @@ it('formats the in-game point HUD label', () => {
   expect(perkPointHudText(7)).toBe('perk pts 7');
 });
 
+const measureText = (text: string, size: number): number => text.length * size * 0.55;
+
+function expectLinesInside(region: UpgradeTextRegionPlan): void {
+  for (const line of region.lines) {
+    expect(line.baseline - line.fontSize).toBeGreaterThanOrEqual(region.rect.y);
+    expect(line.baseline + Math.ceil(line.fontSize * 0.25))
+      .toBeLessThanOrEqual(region.rect.y + region.rect.h);
+  }
+}
+
+it('keeps every compact landscape card line bounded and moves exact focused details out of cards', () => {
+  const progression = new RunProgression();
+  const insets = { top: 0, right: 47, bottom: 21, left: 47 };
+
+  for (const branch of ['weapons', 'ordnance', 'defense', 'flight'] as const) {
+    const layout = upgradeLayout(844, 390, insets, branch, UPGRADE_NODES);
+    expect(layout.detail).not.toBeNull();
+    for (const item of layout.nodes) {
+      const node = buildUpgradeTreeView(progression, branch, item.node.id)
+        .nodes.find(candidate => candidate.id === item.node.id)!;
+      const plan = buildUpgradeNodeRenderPlan(node, item.rect, layout.detail, measureText);
+
+      expectLinesInside(plan.card);
+      expect(plan.card.lines.map(line => line.role)).toEqual(['name', 'cost', 'status']);
+      expect(plan.detail).toBeDefined();
+      expectLinesInside(plan.detail!);
+      expect(plan.detail!.lines.filter(line => line.role === 'description').map(line => line.text).join(' '))
+        .toBe(item.node.description);
+      expect(plan.detail!.lines.filter(line => line.role === 'status').map(line => line.text).join(' '))
+        .toBe(node.reason);
+    }
+  }
+});
+
+it.each([
+  ['desktop', 1920, 1080, { top: 0, right: 0, bottom: 0, left: 0 }, false],
+  ['portrait', 390, 844, { top: 47, right: 0, bottom: 34, left: 0 }, true],
+] as const)('keeps all %s card and detail lines inside their regions', (_name, w, h, insets, usesDetail) => {
+  const progression = new RunProgression({ points: 9 });
+  for (const branch of ['weapons', 'ordnance', 'defense', 'flight'] as const) {
+    const layout = upgradeLayout(w, h, insets, branch, UPGRADE_NODES);
+    expect(Boolean(layout.detail)).toBe(usesDetail);
+    for (const item of layout.nodes) {
+      const node = buildUpgradeTreeView(progression, branch, item.node.id)
+        .nodes.find(candidate => candidate.id === item.node.id)!;
+      const plan = buildUpgradeNodeRenderPlan(node, item.rect, layout.detail, measureText);
+
+      expectLinesInside(plan.card);
+      if (usesDetail) {
+        expect(plan.detail).toBeDefined();
+        expectLinesInside(plan.detail!);
+        expect(plan.detail!.lines.filter(line => line.role === 'description').map(line => line.text).join(' '))
+          .toBe(item.node.description);
+      } else {
+        expect(plan.detail).toBeUndefined();
+        expect(plan.card.lines.filter(line => line.role === 'description').map(line => line.text).join(' '))
+          .toBe(item.node.description);
+      }
+    }
+  }
+});
+
+it.each([
+  ['purchased', (progression: RunProgression): void => { progression.purchase('armor-1'); progression.confirm(); }, 'PURCHASED'],
+  ['pending', (progression: RunProgression): void => { progression.purchase('armor-1'); }, 'PENDING — SELECT TO REFUND'],
+  ['affordable', (_progression: RunProgression): void => undefined, 'AVAILABLE'],
+  ['locked', (_progression: RunProgression): void => undefined, 'Requires 1 points.'],
+] as const)('puts the exact %s status in the focused detail region', (_state, arrange, expected) => {
+  const points = _state === 'locked' ? 0 : 1;
+  const progression = new RunProgression({ points });
+  arrange(progression);
+  const layout = upgradeLayout(844, 390, { top: 0, right: 47, bottom: 21, left: 47 }, 'defense', UPGRADE_NODES);
+  const node = buildUpgradeTreeView(progression, 'defense', 'armor-1').nodes[0];
+  const plan = buildUpgradeNodeRenderPlan(node, layout.nodes[0].rect, layout.detail, measureText);
+
+  expect(plan.detail!.lines.filter(line => line.role === 'status').map(line => line.text).join(' '))
+    .toBe(expected);
+  expectLinesInside(plan.detail!);
+});
+
 function recordingContext(): {
   ctx: CanvasRenderingContext2D;
   texts: string[];
   lineSegments: string[];
+  draws: { text: string; x: number; baseline: number; clip?: UiRect }[];
 } {
   const texts: string[] = [];
   const lineSegments: string[] = [];
+  const draws: { text: string; x: number; baseline: number; clip?: UiRect }[] = [];
+  const clipStack: (UiRect | undefined)[] = [];
+  let currentClip: UiRect | undefined;
+  let pendingRect: UiRect | undefined;
   const ctx = {
     clearRect: () => undefined,
     fillRect: () => undefined,
     strokeRect: () => undefined,
-    beginPath: () => undefined,
+    save: () => clipStack.push(currentClip),
+    restore: () => { currentClip = clipStack.pop(); },
+    beginPath: () => { pendingRect = undefined; },
+    rect: (x: number, y: number, w: number, h: number) => { pendingRect = { x, y, w, h }; },
+    clip: () => { currentClip = pendingRect; },
     moveTo: (x: number, y: number) => lineSegments.push(`M${x},${y}`),
     lineTo: (x: number, y: number) => lineSegments.push(`L${x},${y}`),
     stroke: () => undefined,
-    fillText: (text: string) => texts.push(text),
+    fillText: (text: string, x: number, baseline: number) => {
+      texts.push(text);
+      draws.push({ text, x, baseline, clip: currentClip ? { ...currentClip } : undefined });
+    },
     measureText: (text: string) => ({ width: text.length * 7 }),
     imageSmoothingEnabled: true,
     imageSmoothingQuality: 'high',
@@ -93,13 +191,14 @@ function recordingContext(): {
     font: '',
     textAlign: 'left',
   } as unknown as CanvasRenderingContext2D;
-  return { ctx, texts, lineSegments };
+  return { ctx, texts, lineSegments, draws };
 }
 
 function rendererFixture(): {
   renderer: Renderer;
   texts: string[];
   lineSegments: string[];
+  draws: { text: string; x: number; baseline: number; clip?: UiRect }[];
 } {
   const world = recordingContext();
   const ui = recordingContext();
@@ -107,8 +206,34 @@ function rendererFixture(): {
     renderer: new Renderer(world.ctx, ui.ctx, {} as LoadedAssets),
     texts: ui.texts,
     lineSegments: ui.lineSegments,
+    draws: ui.draws,
   };
 }
+
+it('renders compact card and focused detail lines at their planned baselines under matching clips', () => {
+  const progression = new RunProgression();
+  const branch = 'weapons';
+  const focusedId = 'improved-tracking';
+  const tree = buildUpgradeTreeView(progression, branch, focusedId);
+  const layout = upgradeLayout(844, 390, { top: 0, right: 47, bottom: 21, left: 47 }, branch, UPGRADE_NODES);
+  const { renderer, draws } = rendererFixture();
+
+  renderer.upgradeTree(tree, layout);
+
+  for (const item of layout.nodes) {
+    const node = tree.nodes.find(candidate => candidate.id === item.node.id)!;
+    const plan = buildUpgradeNodeRenderPlan(node, item.rect, layout.detail, text => text.length * 7);
+    for (const region of [plan.card, ...(plan.detail ? [plan.detail] : [])]) {
+      for (const line of region.lines) {
+        expect(draws).toContainEqual(expect.objectContaining({
+          text: line.text,
+          baseline: line.baseline,
+          clip: region.rect,
+        }));
+      }
+    }
+  }
+});
 
 it('renders the complete results breakdown and point balance', () => {
   const { renderer, texts } = rendererFixture();

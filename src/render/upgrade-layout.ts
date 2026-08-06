@@ -11,6 +11,7 @@ export interface UpgradeLayout {
   panel: UiRect;
   tabs: UiRect[];
   nodes: UpgradeNodeLayout[];
+  detail: UiRect | null;
   continueButton: UiRect;
   resultsContinueButton: UiRect;
 }
@@ -72,19 +73,45 @@ export function upgradeLayout(
   const nodes = allNodes.filter(node => node.branch === branch);
   const columns = portrait ? 1 : 2;
   const rows = Math.max(1, Math.ceil(nodes.length / columns));
-  const nodeGap = compact ? 8 : portrait ? 8 : 18;
+  const nodeGap = compact ? 6 : portrait ? 8 : 18;
   const nodeTop = tabs[0].y + tabs[0].h + nodeGap;
-  const nodeBottom = continueButton.y - nodeGap;
+  const footerClearance = compact || portrait ? 18 : nodeGap;
+  const contentBottom = continueButton.y - footerClearance;
+  const compactDetailW = compact ? Math.min(240, Math.max(160, contentW * 0.34)) : 0;
+  const detail = compact
+    ? {
+        x: contentX + contentW - compactDetailW,
+        y: nodeTop,
+        w: compactDetailW,
+        h: Math.max(1, contentBottom - nodeTop),
+      }
+    : portrait
+      ? {
+        x: contentX,
+        y: contentBottom - 66,
+        w: contentW,
+        h: 66,
+      }
+      : null;
+  const nodeBottom = compact
+    ? contentBottom
+    : detail
+      ? detail.y - nodeGap
+      : continueButton.y - nodeGap;
+  const nodeAreaW = compact && detail
+    ? Math.max(1, detail.x - nodeGap - contentX)
+    : contentW;
   const nodeAreaH = Math.max(1, nodeBottom - nodeTop);
   const nodeH = Math.max(1, Math.min(
     compact ? 54 : portrait ? 64 : 108,
     (nodeAreaH - nodeGap * (rows - 1)) / rows,
   ));
-  const nodeW = Math.max(1, (contentW - nodeGap * (columns - 1)) / columns);
+  const nodeW = Math.max(1, (nodeAreaW - nodeGap * (columns - 1)) / columns);
 
   return {
     panel,
     tabs,
+    detail,
     nodes: nodes.map((node, index) => {
       const column = index % columns;
       const row = Math.floor(index / columns);
