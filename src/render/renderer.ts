@@ -2,6 +2,7 @@ import { RENDER_H, RENDER_SCALE, RENDER_W, VIEW_W, VIEW_H, WATERLINE } from '../
 import type { World } from '../game/world';
 import type { Phase } from '../game/state';
 import type { UpgradeCard } from '../game/upgrades';
+import type { PostWaveView } from '../game/post-wave';
 import { uiLayout, type UiLayout } from './ui-layout';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS, isWater } from '../game/terrain';
@@ -14,6 +15,15 @@ import type { QualityTier } from './quality';
 import { damageFlashMode } from './motion';
 import { projectileHasTrail, projectileRotation, projectileVelocityAngle } from './projectile';
 import { AUDIO_CREDIT_LINES, type AudioSettingsView } from './audio-settings';
+import type { UpgradeLayout } from './upgrade-layout';
+import { perkPointHudText, upgradeNodeWrapWidth, type UpgradeTreeView } from './upgrade-view';
+
+export interface ProgressionRenderView {
+  points: number;
+  layout?: UpgradeLayout;
+  results?: PostWaveView;
+  tree?: UpgradeTreeView;
+}
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   const card = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, false).cards[i];
@@ -74,6 +84,7 @@ export class Renderer {
     reducedFlash: boolean,
     debugDamageFlash = false,
     audioSettings?: AudioSettingsView,
+    progressionView?: ProgressionRenderView,
   ): void {
     const { ctx } = this;
     const tier = qualityTier;
@@ -142,7 +153,7 @@ export class Renderer {
     this.drawGrading(world, tier);
 
     this.damageFlash(world, reducedFlash, debugDamageFlash);
-    this.drawScreenUi(world, phase, cards, touchUI, layout, audioSettings);
+    this.drawScreenUi(world, phase, cards, touchUI, layout, audioSettings, progressionView);
     if (phase === 'menu') this.menu();
     if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
@@ -779,10 +790,26 @@ export class Renderer {
     ctx.fillText(s, x, y);
   }
 
-  private drawScreenUi(world: World, phase: Phase, cards: UpgradeCard[], touchUI: boolean, layout: UiLayout, audioSettings?: AudioSettingsView): void {
+  private drawScreenUi(
+    world: World,
+    phase: Phase,
+    _cards: UpgradeCard[],
+    touchUI: boolean,
+    layout: UiLayout,
+    audioSettings?: AudioSettingsView,
+    progressionView?: ProgressionRenderView,
+  ): void {
     this.uiCtx.clearRect(0, 0, layout.viewport.w, layout.viewport.h);
+    if (phase === 'results') {
+      if (progressionView?.results && progressionView.layout) {
+        this.results(progressionView.results, progressionView.layout);
+      }
+      return;
+    }
     if (phase === 'upgrade') {
-      this.upgrade(cards, layout);
+      if (progressionView?.tree && progressionView.layout) {
+        this.upgradeTree(progressionView.tree, progressionView.layout);
+      }
       return;
     }
     if (phase === 'menu') {
@@ -790,7 +817,7 @@ export class Renderer {
       return;
     }
     if (phase === 'gameover') return;
-    this.hud(world, layout);
+    this.hud(world, layout, progressionView?.points);
     if (touchUI && phase === 'playing') this.touchOverlay(layout);
   }
 
@@ -835,7 +862,7 @@ export class Renderer {
     ctx.fill();
   }
 
-  private hud(world: World, layout: UiLayout): void {
+  private hud(world: World, layout: UiLayout, perkPoints?: number): void {
     const ctx = this.uiCtx;
     const { x, y, w, h, fontSize } = layout.hud;
     ctx.fillStyle = '#000a';
@@ -860,6 +887,9 @@ export class Renderer {
     ctx.fillText(`ACT ${world.act} · ${world.waveInAct >= 4 ? 'FINALE' : 'WAVE ' + world.waveInAct}`, x + 12, y + h - 8);
     ctx.textAlign = 'right';
     ctx.fillText(`${world.score}`, x + w - 12, y + 25);
+    if (perkPoints !== undefined) {
+      ctx.fillText(perkPointHudText(perkPoints), x + w - 12, y + h - 8);
+    }
     ctx.textAlign = 'left';
   }
 
@@ -917,21 +947,195 @@ export class Renderer {
     this.text('touch/gamepad supported · ENTER / A / tap outside settings to start', VIEW_W / 2, 140, 8, '#e8f2ff', true);
   }
 
-  private upgrade(cards: UpgradeCard[], layout: UiLayout): void {
+  results(view: PostWaveView, layout: UpgradeLayout): void {
     const ctx = this.uiCtx;
-    ctx.fillStyle = 'rgba(4,10,20,0.75)';
-    ctx.fillRect(0, 0, layout.viewport.w, layout.viewport.h);
-    this.text('WAVE CLEARED — choose an upgrade', layout.objective.x, layout.objective.y + 84, 20, '#ffd866', true, ctx);
-    cards.forEach((card, i) => {
-      const r = layout.cards[i];
-      ctx.fillStyle = '#12233d';
-      ctx.fillRect(r.x, r.y, r.w, r.h);
-      ctx.strokeStyle = '#9fd8ff';
-      ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
-      this.text(`[${i + 1}]`, r.x + r.w / 2, r.y + 40, 20, '#ffd866', true, ctx);
-      this.text(card.name, r.x + r.w / 2, r.y + 90, 18, '#e8f2ff', true, ctx);
-      this.text(card.desc, r.x + r.w / 2, r.y + 140, 14, '#9fd8ff', true, ctx);
+    const { panel, resultsContinueButton: button } = layout;
+    ctx.fillStyle = 'rgba(4,10,20,0.94)';
+    ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+    ctx.strokeStyle = '#9fd8ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2);
+
+    const center = panel.x + panel.w / 2;
+    const compact = panel.h < 430;
+    const titleSize = compact ? 20 : 26;
+    const bodySize = compact ? 13 : 16;
+    const lineHeight = compact ? 24 : 31;
+    let y = panel.y + (compact ? 38 : 54);
+    this.text('WAVE RESULTS', center, y, titleSize, '#ffd866', true, ctx);
+    y += lineHeight * 1.35;
+    for (const line of [
+      `COMBAT SCORE ${view.rating.score}/40`,
+      `DEPTH-CHARGE ACCURACY ${view.rating.accuracy}/30`,
+      `SURVIVAL ${view.rating.survival}/30`,
+      `TOTAL ${view.rating.total}/100`,
+    ]) {
+      this.text(line, center, y, bodySize, '#e8f2ff', true, ctx);
+      y += lineHeight;
+    }
+    y += compact ? 2 : 8;
+    this.text(`BASE POINT +${view.award.base}`, center, y, bodySize, '#9fd8ff', true, ctx);
+    y += lineHeight;
+    this.text(`RATING BONUS +${view.award.bonus}`, center, y, bodySize, '#9fd8ff', true, ctx);
+    y += lineHeight;
+    this.text(`PERK POINTS ${view.balance}`, center, y, bodySize + 1, '#ffd866', true, ctx);
+
+    ctx.fillStyle = '#765b25';
+    ctx.fillRect(button.x, button.y, button.w, button.h);
+    ctx.strokeStyle = '#ffd866';
+    ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
+    this.text('CONTINUE', button.x + button.w / 2, button.y + button.h / 2 + bodySize * 0.36, bodySize, '#fff2c6', true, ctx);
+  }
+
+  upgradeTree(view: UpgradeTreeView, layout: UpgradeLayout): void {
+    const ctx = this.uiCtx;
+    const { panel } = layout;
+    ctx.fillStyle = 'rgba(4,10,20,0.96)';
+    ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+    ctx.strokeStyle = '#9fd8ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2);
+
+    const branches = ['weapons', 'ordnance', 'defense', 'flight'] as const;
+    branches.forEach((branch, index) => {
+      const tab = layout.tabs[index];
+      const selected = branch === view.branch;
+      ctx.fillStyle = selected ? '#765b25' : '#12233d';
+      ctx.fillRect(tab.x, tab.y, tab.w, tab.h);
+      ctx.strokeStyle = selected ? '#ffd866' : '#526b88';
+      ctx.lineWidth = selected ? 2 : 1;
+      ctx.strokeRect(tab.x + 0.5, tab.y + 0.5, tab.w - 1, tab.h - 1);
+      const tabSize = tab.w < 100 ? 10 : 13;
+      this.text(branch.toUpperCase(), tab.x + tab.w / 2, tab.y + tab.h / 2 + tabSize * 0.35, tabSize, selected ? '#fff2c6' : '#9fd8ff', true, ctx);
     });
+
+    const rectById = new Map(layout.nodes.map(item => [item.node.id, item.rect]));
+    ctx.strokeStyle = '#526b88';
+    ctx.lineWidth = 2;
+    for (const node of view.nodes) {
+      const rect = rectById.get(node.id);
+      if (!rect) continue;
+      for (const required of node.requires) {
+        const from = rectById.get(required);
+        if (!from) continue;
+        ctx.beginPath();
+        ctx.moveTo(from.x + from.w / 2, from.y + from.h);
+        ctx.lineTo(rect.x + rect.w / 2, rect.y);
+        ctx.stroke();
+      }
+    }
+
+    const fills = {
+      purchased: '#244837',
+      pending: '#164e67',
+      affordable: '#253f5e',
+      locked: '#171f2b',
+    } as const;
+    const strokes = {
+      purchased: '#72d29b',
+      pending: '#67d8ff',
+      affordable: '#ffd866',
+      locked: '#52606f',
+    } as const;
+    for (const node of view.nodes) {
+      const rect = rectById.get(node.id);
+      if (!rect) continue;
+      ctx.fillStyle = fills[node.state];
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = node.focused ? '#fff2c6' : strokes[node.state];
+      ctx.lineWidth = node.focused ? 3 : 1.5;
+      ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
+
+      const compact = rect.h < 70;
+      const inset = (rect.w - upgradeNodeWrapWidth(rect)) / 2;
+      const textX = rect.x + inset;
+      const wrapWidth = upgradeNodeWrapWidth(rect);
+      const nameSize = compact ? 11 : 14;
+      const bodySize = compact ? 9 : 11;
+      const bodyLineHeight = bodySize + 2;
+      const nameY = rect.y + (compact ? 14 : 21);
+      this.text(node.name, textX, nameY, nameSize, '#e8f2ff', false, ctx);
+      this.rightText(
+        `${node.cost} ${node.cost === 1 ? 'pt' : 'pts'}`,
+        rect.x + rect.w - inset,
+        nameY,
+        nameSize,
+        '#ffd866',
+      );
+
+      let bodyY = nameY + (compact ? 12 : 18);
+      bodyY = this.wrappedText(node.description, textX, bodyY, wrapWidth, bodySize, '#9fd8ff', bodyLineHeight);
+      const stateLabel = node.state === 'purchased'
+        ? 'PURCHASED'
+        : node.state === 'pending'
+          ? 'PENDING — SELECT TO REFUND'
+          : node.state === 'affordable'
+            ? 'AVAILABLE'
+            : node.reason;
+      if (stateLabel) {
+        this.wrappedText(
+          stateLabel,
+          textX,
+          Math.max(bodyY + 1, rect.y + rect.h - bodyLineHeight - 3),
+          wrapWidth,
+          compact ? 8 : 10,
+          node.state === 'locked' ? '#aeb8c5' : strokes[node.state],
+          compact ? 9 : 11,
+        );
+      }
+    }
+
+    const footerSize = panel.h < 430 || panel.w < 500 ? 10 : 13;
+    const footerY = layout.continueButton.y - (panel.h < 430 ? 5 : 10);
+    this.text('Select pending upgrade again to refund', panel.x + 18, footerY, footerSize, '#9fd8ff', false, ctx);
+    this.rightText(`PERK POINTS ${view.points}`, panel.x + panel.w - 18, footerY, footerSize, '#ffd866');
+
+    const button = layout.continueButton;
+    ctx.fillStyle = '#765b25';
+    ctx.fillRect(button.x, button.y, button.w, button.h);
+    ctx.strokeStyle = '#ffd866';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
+    this.text('START NEXT WAVE', button.x + button.w / 2, button.y + button.h / 2 + footerSize * 0.38, footerSize + 1, '#fff2c6', true, ctx);
+  }
+
+  private rightText(s: string, x: number, y: number, size: number, color: string): void {
+    const ctx = this.uiCtx;
+    ctx.fillStyle = color;
+    ctx.font = `${size}px system-ui, sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(s, x, y);
+    ctx.textAlign = 'left';
+  }
+
+  private wrappedText(
+    value: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    size: number,
+    color: string,
+    lineHeight: number,
+  ): number {
+    const ctx = this.uiCtx;
+    ctx.fillStyle = color;
+    ctx.font = `${size}px system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    const words = value.split(/\s+/);
+    let line = '';
+    let lineY = y;
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(candidate).width > maxWidth) {
+        ctx.fillText(line, x, lineY);
+        line = word;
+        lineY += lineHeight;
+      } else {
+        line = candidate;
+      }
+    }
+    if (line) ctx.fillText(line, x, lineY);
+    return lineY;
   }
 
   private gameover(world: World): void {

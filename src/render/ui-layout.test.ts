@@ -1,4 +1,7 @@
 import { expect, it } from 'vitest';
+import { UPGRADE_NODES } from '../game/upgrade-tree';
+import { upgradeLayout } from './upgrade-layout';
+import { upgradeNodeWrapWidth } from './upgrade-view';
 import { fitViewport } from './viewport';
 import { uiLayout, type UiCircle, type UiRect } from './ui-layout';
 
@@ -79,4 +82,18 @@ it.each([
   expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
   expect(l.hud.fontSize).toBeGreaterThanOrEqual(14);
   expect(l.hud.x + l.hud.w).toBeLessThanOrEqual(w);
+});
+
+it.each([
+  [1920, 1080, { top: 0, right: 0, bottom: 0, left: 0 }],
+  [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
+  [844, 390, { top: 0, right: 47, bottom: 21, left: 47 }],
+] as const)('computes a usable wrapping width for every upgrade node at %ix%i', (w, h, insets) => {
+  for (const branch of ['weapons', 'ordnance', 'defense', 'flight'] as const) {
+    const layout = upgradeLayout(w, h, insets, branch, UPGRADE_NODES);
+    for (const { rect } of layout.nodes) {
+      expect(upgradeNodeWrapWidth(rect)).toBeGreaterThan(0);
+      expect(upgradeNodeWrapWidth(rect)).toBeLessThan(rect.w);
+    }
+  }
 });
