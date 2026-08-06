@@ -77,6 +77,61 @@ describe('GamepadInput', () => {
     expect(input.poll()).toMatchObject({ confirmPressed: false, cardPressed: -1 });
   });
 
+  it('maps D-pad and shoulder press edges to upgrade focus actions', () => {
+    let current = pad();
+    const input = new GamepadInput(() => [current]);
+    input.poll();
+
+    current = pad([0, 0, 0, 0], [14]);
+    expect(input.poll().upgradeAction).toBe('left');
+    expect(input.poll().upgradeAction).toBeNull();
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [15]);
+    expect(input.poll().upgradeAction).toBe('right');
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [12]);
+    expect(input.poll().upgradeAction).toBe('up');
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [13]);
+    expect(input.poll().upgradeAction).toBe('down');
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [4]);
+    expect(input.poll().upgradeAction).toBe('left');
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [5]);
+    expect(input.poll().upgradeAction).toBe('right');
+  });
+
+  it('maps A, B, and Start press edges to semantic upgrade commands', () => {
+    let current = pad();
+    const input = new GamepadInput(() => [current]);
+    input.poll();
+
+    current = pad([0, 0, 0, 0], [0]);
+    expect(input.poll().upgradeAction).toBe('select');
+    expect(input.poll().upgradeAction).toBeNull();
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [1]);
+    expect(input.poll().upgradeAction).toBe('refund');
+
+    current = pad();
+    input.poll();
+    current = pad([0, 0, 0, 0], [9]);
+    expect(input.poll().upgradeAction).toBe('continue');
+  });
+
   it('returns neutral input after disconnection', () => {
     let pads: (GamepadLike | null)[] = [pad([1, 1, 1, 1], [0])];
     const input = new GamepadInput(() => pads);
@@ -94,6 +149,7 @@ describe('GamepadInput', () => {
       sfxPressed: false,
       confirmPressed: false,
       cardPressed: -1,
+      upgradeAction: null,
     });
   });
 });

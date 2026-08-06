@@ -1,6 +1,7 @@
 import { RENDER_H, RENDER_SCALE, RENDER_W } from '../game/consts';
 import { uiLayout, type UiCircle } from '../render/ui-layout';
 import { GamepadInput } from './gamepad';
+import type { UpgradeAction } from './upgrade-navigation';
 
 export interface Intent {
   move: { x: number; y: number };
@@ -44,6 +45,7 @@ export class Input {
   private missileQueued = false;
   private confirmQueued = false;
   private cardKeyQueued = -1;
+  private upgradeActionQueued: UpgradeAction | null = null;
   private mouseFire = false;
   private touchFireQueued = false;
   private controls: TouchControls = touchControls();
@@ -76,6 +78,11 @@ export class Input {
       if (e.code === 'Digit1') this.cardKeyQueued = 0;
       if (e.code === 'Digit2') this.cardKeyQueued = 1;
       if (e.code === 'Digit3') this.cardKeyQueued = 2;
+      const upgradeAction = keyboardUpgradeAction(e.code);
+      if (upgradeAction) {
+        this.upgradeActionQueued = upgradeAction;
+        e.preventDefault();
+      }
       this.onGesture?.();
     });
     window.addEventListener('keyup', e => this.keys.delete(e.code));
@@ -147,6 +154,7 @@ export class Input {
     this.missileQueued = false;
     this.confirmQueued = false;
     this.cardKeyQueued = -1;
+    this.upgradeActionQueued = null;
     this.mouseFire = false;
     this.touchFireQueued = false;
     this.firePointers.clear();
@@ -163,6 +171,7 @@ export class Input {
       : null;
     if (gamepad.confirmPressed) this.confirmQueued = true;
     if (gamepad.cardPressed >= 0) this.cardKeyQueued = gamepad.cardPressed;
+    if (gamepad.upgradeAction) this.upgradeActionQueued = gamepad.upgradeAction;
     let x = 0, y = 0;
     if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) x -= 1;
     if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) x += 1;
@@ -238,5 +247,24 @@ export class Input {
     const c = this.cardKeyQueued;
     this.cardKeyQueued = -1;
     return c;
+  }
+
+  consumeUpgradeAction(): UpgradeAction | null {
+    const action = this.upgradeActionQueued;
+    this.upgradeActionQueued = null;
+    return action;
+  }
+}
+
+function keyboardUpgradeAction(code: string): UpgradeAction | null {
+  switch (code) {
+    case 'ArrowLeft': return 'left';
+    case 'ArrowRight': return 'right';
+    case 'ArrowUp': return 'up';
+    case 'ArrowDown': return 'down';
+    case 'Enter': return 'select';
+    case 'Backspace': return 'refund';
+    case 'Space': return 'continue';
+    default: return null;
   }
 }

@@ -1,3 +1,5 @@
+import type { UpgradeAction } from './upgrade-navigation';
+
 export interface GamepadButtonLike {
   pressed: boolean;
   value: number;
@@ -23,6 +25,7 @@ export interface GamepadState {
   sfxPressed: boolean;
   confirmPressed: boolean;
   cardPressed: number;
+  upgradeAction: UpgradeAction | null;
 }
 
 type GamepadProvider = () => readonly (GamepadLike | null)[];
@@ -74,10 +77,22 @@ export class GamepadInput {
       sfxPressed: newlyPressed(3),
       confirmPressed: newlyPressed(0) || newlyPressed(9),
       cardPressed,
+      upgradeAction: upgradeActionFor(newlyPressed),
     };
     this.previousButtons = pressed;
     return state;
   }
+}
+
+function upgradeActionFor(newlyPressed: (button: number) => boolean): UpgradeAction | null {
+  if (newlyPressed(14) || newlyPressed(4)) return 'left';
+  if (newlyPressed(15) || newlyPressed(5)) return 'right';
+  if (newlyPressed(12)) return 'up';
+  if (newlyPressed(13)) return 'down';
+  if (newlyPressed(0)) return 'select';
+  if (newlyPressed(1)) return 'refund';
+  if (newlyPressed(9)) return 'continue';
+  return null;
 }
 
 function browserGamepads(): readonly (GamepadLike | null)[] {
@@ -98,5 +113,6 @@ function neutralState(): GamepadState {
     sfxPressed: false,
     confirmPressed: false,
     cardPressed: -1,
+    upgradeAction: null,
   };
 }

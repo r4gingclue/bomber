@@ -99,6 +99,38 @@ it('queues gamepad confirm and upgrade-card edges for phase handling', () => {
   expect(input.consumeCardKey()).toBe(-1);
 });
 
+it('queues semantic keyboard upgrade actions on press edges', () => {
+  const { input, keyboard } = setupInput();
+
+  const actionFor = (code: string, action: string) => {
+    keyboard.dispatchEvent(event('keydown', { code, repeat: false }));
+    expect(input.consumeUpgradeAction()).toBe(action);
+  };
+
+  actionFor('ArrowLeft', 'left');
+  actionFor('ArrowRight', 'right');
+  actionFor('ArrowUp', 'up');
+  actionFor('ArrowDown', 'down');
+  actionFor('Enter', 'select');
+  actionFor('Backspace', 'refund');
+  actionFor('Space', 'continue');
+
+  keyboard.dispatchEvent(event('keydown', { code: 'Enter', repeat: true }));
+  expect(input.consumeUpgradeAction()).toBeNull();
+});
+
+it('queues gamepad upgrade actions once per pressed edge', () => {
+  let current = gamepad([0, 0, 0, 0], []);
+  const input = new Input(new GamepadInput(() => [current]));
+  input.poll();
+  current = gamepad([0, 0, 0, 0], [0]);
+
+  input.poll();
+  expect(input.consumeUpgradeAction()).toBe('select');
+  input.poll();
+  expect(input.consumeUpgradeAction()).toBeNull();
+});
+
 it('uses the visible MOVE circle as the movement hitbox', () => {
   const { input, canvas } = setupInput();
   const move = touchControls().move;
@@ -282,4 +314,5 @@ it('clears every held and queued input state on blur', () => {
   expect(input.aimStickDir()).toBeNull();
   expect(input.consumeConfirm()).toBe(false);
   expect(input.consumeCardKey()).toBe(-1);
+  expect(input.consumeUpgradeAction()).toBeNull();
 });
