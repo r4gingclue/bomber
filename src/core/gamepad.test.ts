@@ -91,6 +91,7 @@ describe('GamepadInput', () => {
       fire: false,
       dropPressed: false,
       missilePressed: false,
+      sfxPressed: false,
       confirmPressed: false,
       cardPressed: -1,
     });

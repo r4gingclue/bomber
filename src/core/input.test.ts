@@ -72,7 +72,7 @@ it('maps render-space touch controls back to the matching simulation hit region'
 });
 
 it('combines standard gamepad movement, aim, and actions with input intent', () => {
-  const controller = new GamepadInput(() => [gamepad([0.7, -0.6, 0.8, -0.9], [0, 1, 2])]);
+  const controller = new GamepadInput(() => [gamepad([0.7, -0.6, 0.8, -0.9], [0, 1, 2, 3])]);
   const input = new Input(controller);
 
   expect(input.poll()).toMatchObject({
@@ -80,6 +80,7 @@ it('combines standard gamepad movement, aim, and actions with input intent', () 
     fire: true,
     drop: true,
     missile: true,
+    sfxUp: true,
   });
   expect(input.aimStickDir()).toEqual({ dx: 32, dy: -36 });
   expect(input.gamepadConnected).toBe(true);
@@ -274,6 +275,7 @@ it('clears every held and queued input state on blur', () => {
     drop: false,
     fire: false,
     missile: false,
+    sfxUp: false,
     aim: null,
   });
   expect(input.aimCanvasPoint()).toBeNull();

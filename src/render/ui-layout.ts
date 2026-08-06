@@ -1,4 +1,5 @@
 import type { Insets, ViewportRect } from './viewport';
+import { audioSettingsLayout, type AudioSettingsLayout } from './audio-settings';
 
 export interface UiCircle { x: number; y: number; r: number }
 export interface UiRect { x: number; y: number; w: number; h: number }
@@ -15,6 +16,7 @@ export interface UiLayout {
   controlsInLetterbox: boolean;
   controlOpacity: number;
   gameplaySafe: UiRect;
+  audio: AudioSettingsLayout;
 }
 
 function battlefieldRect(
@@ -156,5 +158,6 @@ export function uiLayout(
       w: Math.max(1, safeRightX - safeX),
       h: Math.max(1, battlefield.h - 16),
     },
+    audio: audioSettingsLayout(w, h, i),
   };
 }

@@ -13,6 +13,7 @@ import { budgetedParticlesOldestFirst, effectBudget } from './effects';
 import type { QualityTier } from './quality';
 import { damageFlashMode } from './motion';
 import { projectileHasTrail, projectileRotation, projectileVelocityAngle } from './projectile';
+import { AUDIO_CREDIT_LINES, type AudioSettingsView } from './audio-settings';
 
 export function cardRect(i: number): { x: number; y: number; w: number; h: number } {
   const card = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, false).cards[i];
@@ -72,6 +73,7 @@ export class Renderer {
     layout: UiLayout,
     reducedFlash: boolean,
     debugDamageFlash = false,
+    audioSettings?: AudioSettingsView,
   ): void {
     const { ctx } = this;
     const tier = qualityTier;
@@ -140,7 +142,7 @@ export class Renderer {
     this.drawGrading(world, tier);
 
     this.damageFlash(world, reducedFlash, debugDamageFlash);
-    this.drawScreenUi(world, phase, cards, touchUI, layout);
+    this.drawScreenUi(world, phase, cards, touchUI, layout, audioSettings);
     if (phase === 'menu') this.menu();
     if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
@@ -777,15 +779,60 @@ export class Renderer {
     ctx.fillText(s, x, y);
   }
 
-  private drawScreenUi(world: World, phase: Phase, cards: UpgradeCard[], touchUI: boolean, layout: UiLayout): void {
+  private drawScreenUi(world: World, phase: Phase, cards: UpgradeCard[], touchUI: boolean, layout: UiLayout, audioSettings?: AudioSettingsView): void {
     this.uiCtx.clearRect(0, 0, layout.viewport.w, layout.viewport.h);
     if (phase === 'upgrade') {
       this.upgrade(cards, layout);
       return;
     }
-    if (phase === 'menu' || phase === 'gameover') return;
+    if (phase === 'menu') {
+      if (audioSettings) this.audioPanel(layout, audioSettings);
+      return;
+    }
+    if (phase === 'gameover') return;
     this.hud(world, layout);
     if (touchUI && phase === 'playing') this.touchOverlay(layout);
+  }
+
+  private audioPanel(layout: UiLayout, view: AudioSettingsView): void {
+    const ctx = this.uiCtx;
+    const panel = layout.audio.panel;
+    ctx.fillStyle = 'rgba(4, 10, 20, 0.9)';
+    ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+    ctx.strokeStyle = '#9fd8ff';
+    ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+    this.drawAudioSlider('MUSIC', layout.audio.music, view.music);
+    this.drawAudioSlider('SFX', layout.audio.sfx, view.sfx);
+    for (const [rect, label, active] of [
+      [layout.audio.mute, view.muted ? 'UNMUTE [M]' : 'MUTE [M]', view.muted],
+      [layout.audio.credits, view.creditsOpen ? 'CLOSE CREDITS' : 'CREDITS [C]', view.creditsOpen],
+    ] as const) {
+      ctx.fillStyle = active ? '#765b25' : '#12233d';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = '#9fd8ff';
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      this.text(label, rect.x + rect.w / 2, rect.y + 25, 13, '#e8f2ff', true, ctx);
+    }
+    if (view.creditsOpen) {
+      ctx.fillStyle = 'rgba(4, 10, 20, 0.97)';
+      ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - 68);
+      AUDIO_CREDIT_LINES.forEach((line, index) =>
+        this.text(line, panel.x + panel.w / 2, panel.y + 30 + index * 22, 12, '#e8f2ff', true, ctx));
+    }
+  }
+
+  private drawAudioSlider(label: string, track: { x: number; y: number; w: number; h: number }, value: number): void {
+    const ctx = this.uiCtx;
+    this.text(label, track.x - 36, track.y + 23, 13, '#e8f2ff', true, ctx);
+    const y = track.y + track.h / 2 - 4;
+    ctx.fillStyle = '#26364d';
+    ctx.fillRect(track.x, y, track.w, 8);
+    ctx.fillStyle = '#9fd8ff';
+    ctx.fillRect(track.x, y, track.w * value, 8);
+    ctx.fillStyle = '#ffd866';
+    ctx.beginPath();
+    ctx.arc(track.x + track.w * value, y + 4, 9, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   private hud(world: World, layout: UiLayout): void {
@@ -864,11 +911,10 @@ export class Renderer {
 
   private menu(): void {
     this.overlay();
-    this.text('SEA BOMBER', VIEW_W / 2, 100, 24, '#ffd866', true);
-    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 125, 8, '#9fd8ff', true);
-    this.text('WASD/arrows move · SPACE drop · aim with mouse · click/F fire', VIEW_W / 2, 150, 8, '#e8f2ff', true);
-    this.text('touch: left stick move · right stick aim · FIRE/DROP buttons', VIEW_W / 2, 162, 8, '#e8f2ff', true);
-    this.text('press ENTER or tap to start', VIEW_W / 2, 190, 10, '#ffd866', true);
+    this.text('SEA BOMBER', VIEW_W / 2, 76, 24, '#ffd866', true);
+    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 101, 8, '#9fd8ff', true);
+    this.text('WASD/arrows move · SPACE drop · aim with mouse · click/F fire', VIEW_W / 2, 126, 8, '#e8f2ff', true);
+    this.text('touch/gamepad supported · ENTER / A / tap outside settings to start', VIEW_W / 2, 140, 8, '#e8f2ff', true);
   }
 
   private upgrade(cards: UpgradeCard[], layout: UiLayout): void {

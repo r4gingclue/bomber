@@ -20,6 +20,7 @@ export interface GamepadState {
   fire: boolean;
   dropPressed: boolean;
   missilePressed: boolean;
+  sfxPressed: boolean;
   confirmPressed: boolean;
   cardPressed: number;
 }
@@ -70,6 +71,7 @@ export class GamepadInput {
       fire: pressed.has(0) || pressed.has(7),
       dropPressed: newlyPressed(1) || newlyPressed(6),
       missilePressed: newlyPressed(2) || newlyPressed(5),
+      sfxPressed: newlyPressed(3),
       confirmPressed: newlyPressed(0) || newlyPressed(9),
       cardPressed,
     };
@@ -93,6 +95,7 @@ function neutralState(): GamepadState {
     fire: false,
     dropPressed: false,
     missilePressed: false,
+    sfxPressed: false,
     confirmPressed: false,
     cardPressed: -1,
   };

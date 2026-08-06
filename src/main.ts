@@ -26,6 +26,7 @@ import { AUDIO_MANIFEST } from './audio/manifest';
 import { SoundBank } from './audio/sound-bank';
 import { MusicDirector } from './audio/music-director';
 import { WebAudioMusicScheduler } from './audio/web-audio-scheduler';
+import { audioSettingsHit } from './render/audio-settings';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -146,6 +147,7 @@ async function boot(): Promise<void> {
   let introT = 0;
   let harnessRestage = 0;
   let musicSampleT = 0;
+  let creditsOpen = false;
 
   activeInput.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
   activeInput.attach(uiCanvas);
@@ -157,7 +159,14 @@ async function boot(): Promise<void> {
     clientX >= viewport.x && clientX <= viewport.x + viewport.width
       && clientY >= viewport.y && clientY <= viewport.y + viewport.height;
   activeInput.onTap = (clientX, clientY) => {
-    if (state.phase === 'menu') startRun();
+    if (state.phase === 'menu') {
+      const hit = audioSettingsHit(screenLayout.audio, { x: clientX, y: clientY });
+      if (hit?.control === 'music') audio.setMusicVolume(hit.value);
+      else if (hit?.control === 'sfx') audio.setSfxVolume(hit.value);
+      else if (hit?.control === 'mute') audio.toggleMute();
+      else if (hit?.control === 'credits') creditsOpen = !creditsOpen;
+      else startRun();
+    }
     else if (state.phase === 'gameover') {
       state.toMenu();
       audio.handle('ui-confirm');
@@ -195,6 +204,11 @@ async function boot(): Promise<void> {
 
   window.addEventListener('keydown', e => {
     if (e.code === 'KeyM') audio.toggleMute();
+    if (e.code === 'KeyC' && state.phase === 'menu') creditsOpen = !creditsOpen;
+    if (e.code === 'BracketLeft' && state.phase === 'menu') audio.setMusicVolume(audio.preferences.music - 0.1);
+    if (e.code === 'BracketRight' && state.phase === 'menu') audio.setMusicVolume(audio.preferences.music + 0.1);
+    if (e.code === 'Minus' && state.phase === 'menu') audio.setSfxVolume(audio.preferences.sfx - 0.1);
+    if (e.code === 'Equal' && state.phase === 'menu') audio.setSfxVolume(audio.preferences.sfx + 0.1);
   });
 
   function update(dt: number): void {
@@ -213,6 +227,11 @@ async function boot(): Promise<void> {
     }
     const intent = activeInput.poll();
     if (state.phase === 'menu' || state.phase === 'gameover') {
+      if (state.phase === 'menu') {
+        if (intent.drop) audio.toggleMute();
+        if (intent.missile) audio.setMusicVolume((audio.preferences.music + 0.1) % 1.1);
+        if (intent.sfxUp) audio.setSfxVolume((audio.preferences.sfx + 0.1) % 1.1);
+      }
       if (activeInput.consumeConfirm()) {
         if (state.phase === 'gameover') { state.toMenu(); audio.handle('ui-confirm'); }
         else startRun();
@@ -329,6 +348,12 @@ async function boot(): Promise<void> {
         screenLayout,
         motion.value || harness.reducedMotion,
         harness.damageFlash,
+        {
+          music: audio.preferences.music,
+          sfx: audio.preferences.sfx,
+          muted: audio.muted,
+          creditsOpen,
+        },
       );
       const renderEnd = performance.now();
       if (

@@ -7,6 +7,7 @@ export interface Intent {
   drop: boolean;
   fire: boolean;
   missile: boolean;
+  sfxUp?: boolean;
   /** world-space aim point; resolved by main.ts from mouse or aim stick */
   aim?: { x: number; y: number } | null;
 }
@@ -187,6 +188,7 @@ export class Input {
       drop,
       fire: this.keys.has('KeyF') || this.mouseFire || touchFire || gamepad.fire,
       missile,
+      sfxUp: gamepad.sfxPressed,
       aim: null,
     };
   }
