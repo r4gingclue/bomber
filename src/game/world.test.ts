@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { World, scoreBlast, BASE_SCORE, impactParticleColor } from './world';
-import { WATERLINE } from './consts';
+import { ARENA_W, VIEW_H, WATERLINE } from './consts';
 import { mulberry32 } from '../core/rng';
 import { generateTerrain, isWater } from './terrain';
+import { defaultStats } from './upgrades';
 
 describe('scoreBlast', () => {
   it('adds depth bonus per kill', () => {
@@ -29,6 +30,139 @@ it('chooses impact visuals from terrain water state rather than impact height', 
 });
 
 describe('World', () => {
+  it('preserves health percentage when replacing derived stats', () => {
+    const w = new World(mulberry32(1));
+    w.player.hp = 50;
+
+    w.setStats({ ...defaultStats(), maxHp: 150 });
+
+    expect(w.player.hp).toBe(75);
+    expect(w.stats.maxHp).toBe(150);
+  });
+
+  it('applies field repair at a wave boundary without exceeding max health', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), fieldRepair: 12 });
+    w.player.hp = 95;
+
+    w.applyWaveRecovery();
+
+    expect(w.player.hp).toBe(100);
+  });
+
+  it('uses derived cannon cooldown and damage', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), cannonCooldown: 0.06, cannonDamage: 12 });
+    const fire = { move: { x: 0, y: 0 }, drop: false, fire: true, missile: false };
+
+    w.update(0.01, fire);
+    w.update(0.06, fire);
+
+    const bullets = w.shots.filter(s => s.ptype === 'bullet');
+    expect(bullets).toHaveLength(2);
+    expect(bullets.every(s => s.damage === 12)).toBe(true);
+  });
+
+  it('fires two cannon projectiles across a six-degree spread', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), cannonShots: 2 });
+
+    w.update(0.01, { move: { x: 0, y: 0 }, drop: false, fire: true, missile: false });
+
+    const angles = w.shots
+      .filter(s => s.ptype === 'bullet')
+      .map(s => Math.atan2(s.vy, s.vx))
+      .sort((a, b) => a - b);
+    expect(angles).toHaveLength(2);
+    expect(angles[1] - angles[0]).toBeCloseTo(Math.PI / 30, 8);
+  });
+
+  it('lets a piercing cannon round survive one enemy collision', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), cannonPierce: 1 });
+    const x = w.player.x + 80;
+    const target = (id: number) => ({
+      id, kind: 'gunboat' as const, hp: 1, x, y: w.player.y,
+      vx: 0, vy: 0, dir: 1 as const, fireTimer: 99, surfaceTimer: 0,
+      surfaced: false, hitFlash: 0,
+    });
+    w.subs.push(target(901), target(902));
+    w.update(0.01, { move: { x: 0, y: 0 }, drop: false, fire: true, missile: false });
+    const bullet = w.shots.find(s => s.ptype === 'bullet')!;
+    bullet.x = x;
+    bullet.y = w.player.y;
+    bullet.vx = 0;
+    bullet.vy = 0;
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.shots).toContain(bullet);
+    expect(w.subs).toHaveLength(1);
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.shots).not.toContain(bullet);
+    expect(w.subs).toHaveLength(0);
+  });
+
+  it('applies numeric charge damage instead of unconditionally destroying blast targets', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), chargeDamage: 12 });
+    const target = {
+      id: 904, kind: 'patrol' as const, hp: 30, x: 300, y: 200,
+      vx: 0, vy: 0, dir: 1 as const, fireTimer: 99, surfaceTimer: 99,
+      surfaced: false, hitFlash: 0,
+    };
+    w.subs.push(target);
+    w.charges.push({ id: 905, x: 300, y: 200, vx: 0, vy: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.subs).toContain(target);
+    expect(target.hp).toBe(18);
+    expect(w.kills).toBe(0);
+    expect(w.score).toBe(0);
+  });
+
+  it('consumes speedScale in player terminal movement', () => {
+    const baseline = new World(mulberry32(1));
+    const faster = new World(mulberry32(1));
+    faster.setStats({ ...defaultStats(), speedScale: 1.12 });
+    const move = { move: { x: 1, y: 0 }, drop: false, fire: false, missile: false };
+
+    for (let i = 0; i < 600; i++) {
+      baseline.update(1 / 60, move);
+      faster.update(1 / 60, move);
+    }
+
+    expect(baseline.player.vx).toBeCloseTo(110.52, 1);
+    expect(faster.player.vx).toBeCloseTo(123.79, 1);
+  });
+
+  it('consumes handlingScale without reducing commanded-axis speed', () => {
+    const baseline = new World(mulberry32(1));
+    const improved = new World(mulberry32(1));
+    improved.setStats({ ...defaultStats(), handlingScale: 0.9 });
+    baseline.player.vx = improved.player.vx = 20;
+    baseline.player.vy = improved.player.vy = 100;
+    const move = { move: { x: 1, y: 0 }, drop: false, fire: false, missile: false };
+
+    baseline.update(0.5, move);
+    improved.update(0.5, move);
+
+    expect(improved.player.vx).toBeCloseTo(baseline.player.vx, 8);
+    expect(Math.abs(improved.player.vy)).toBeLessThan(Math.abs(baseline.player.vy));
+  });
+
+  it('uses sonarInterval for recurring sonar pings', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), sonar: true, sonarInterval: 0.05 });
+    w.startWave();
+    w.events.length = 0;
+
+    w.update(0.05, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.events).toContain('sonar-ping');
+  });
+
   it('emits specific player weapon and charge events', () => {
     const w = new World(mulberry32(1));
     w.startWave();
@@ -482,12 +616,13 @@ describe('World', () => {
     expect(shot.vx).toBeLessThan(0); // toward player on the left
   });
 
-  it('missile stock refills +1 per wave up to cap', () => {
+  it('uses missileRefill per wave up to the missile cap', () => {
     const w = new World(mulberry32(1));
-    w.stats.missileCap = 4;
+    w.setStats({ ...defaultStats(), missileCap: 4, missileRefill: 2 });
     w.startWave();
-    expect(w.missileStock).toBe(1);
-    for (let i = 0; i < 9; i++) w.startWave();
+    expect(w.missileStock).toBe(2);
+    w.missileStock = 3;
+    w.startWave();
     expect(w.missileStock).toBe(4);
   });
 
@@ -535,7 +670,7 @@ describe('World', () => {
     w.shots.push({
       id: 719,
       ptype: 'shot',
-      x: w.player.x + 40,
+      x: w.player.x + 36,
       y: w.player.y,
       vx: 0,
       vy: 0,
@@ -551,7 +686,7 @@ describe('World', () => {
     w.shots.push({
       id: 718,
       ptype: 'shot',
-      x: w.player.x + 30,
+      x: w.player.x + 35,
       y: w.player.y,
       vx: 0,
       vy: 0,
@@ -562,6 +697,23 @@ describe('World', () => {
     w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
 
     expect(w.shots.some(p => p.id === 718)).toBe(false);
+  });
+
+  it('uses pointDefenseCooldown before intercepting another threat', () => {
+    const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), pointDefense: true, pointDefenseCooldown: 0.1 });
+    w.shots.push(
+      { id: 726, ptype: 'shot', x: w.player.x + 30, y: w.player.y, vx: 0, vy: 0, age: 0, life: 4, damage: 10 },
+      { id: 727, ptype: 'shot', x: w.player.x + 30, y: w.player.y, vx: 0, vy: 0, age: 0, life: 4, damage: 10 },
+    );
+    const idle = { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false };
+
+    w.update(0.01, idle);
+    expect(w.shots.filter(p => p.id === 726 || p.id === 727)).toHaveLength(1);
+    w.update(0.05, idle);
+    expect(w.shots.filter(p => p.id === 726 || p.id === 727)).toHaveLength(1);
+    w.update(0.05, idle);
+    expect(w.shots.filter(p => p.id === 726 || p.id === 727)).toHaveLength(0);
   });
 
   it('autocannon bullets can shoot down enemy SAM rockets', () => {
@@ -650,6 +802,23 @@ describe('World', () => {
     expect(w.shots.find(p => p.ptype === 'pmissile')!.vx).toBeGreaterThan(0);
   });
 
+  it('uses missileAcquireScale against the arena-diagonal baseline range', () => {
+    const w = new World(mulberry32(1));
+    const targetDistance = Math.hypot(ARENA_W, VIEW_H) * 0.6;
+    w.setStats({ ...defaultStats(), missileCap: 1, missileAcquireScale: 0.5 });
+    w.missileStock = 1;
+    w.subs.push({ id: 728, kind: 'scout', hp: 8, x: w.player.x + targetDistance, y: w.player.y, vx: 0, vy: 0, dir: -1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: true });
+    expect(w.shots.some(p => p.ptype === 'pmissile')).toBe(false);
+    expect(w.missileStock).toBe(1);
+
+    w.setStats({ ...defaultStats(), missileCap: 1, missileAcquireScale: 1 });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: true });
+    expect(w.shots.some(p => p.ptype === 'pmissile')).toBe(true);
+    expect(w.missileStock).toBe(0);
+  });
+
   it('preserves missile stock when no air target exists', () => {
     const w = new World(mulberry32(1));
     w.stats.missileCap = 1;
@@ -675,15 +844,16 @@ describe('World', () => {
     expect(w.particles.length).toBeGreaterThan(0);
   });
 
-  it('caps player missile homing turns at 3 radians per second', () => {
+  it('scales player missile homing turns with missileSteering', () => {
     const w = new World(mulberry32(1));
+    w.setStats({ ...defaultStats(), missileSteering: 1.25 });
     w.subs.push({ id: 708, kind: 'scout', hp: 8, x: w.player.x - 200, y: w.player.y, vx: 0, vy: 0, dir: 1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
     const missile = { id: 709, ptype: 'pmissile' as const, x: w.player.x, y: w.player.y, vx: 200, vy: 0, age: 0, life: 4, damage: 24 };
     w.shots.push(missile);
 
     w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
 
-    expect(Math.atan2(missile.vy, missile.vx)).toBeCloseTo(3 / 60, 8);
+    expect(Math.atan2(missile.vy, missile.vx)).toBeCloseTo(3.75 / 60, 8);
   });
 
   it('applies a scout missile kill blast, score, and reward exactly once', () => {

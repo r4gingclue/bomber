@@ -188,9 +188,11 @@ async function boot(): Promise<void> {
   function pickCard(i: number): void {
     const card = cards[i];
     if (!card) return;
-    card.apply(world.stats);
+    const stats = { ...world.stats };
+    card.apply(stats);
+    world.setStats(stats);
     world.owned.add(card.id);
-    world.player.hp = Math.min(world.stats.maxHp, world.player.hp + 15); // small heal per wave
+    world.applyWaveRecovery();
     if (world.actComplete) {
       world.startAct();
       state.toActIntro();

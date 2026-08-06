@@ -1,11 +1,11 @@
 import type { Rng } from '../core/rng';
 import type { Intent } from '../core/input';
-import { ARENA_W, VIEW_W, WATERLINE, SEA_BOTTOM } from './consts';
+import { ARENA_W, VIEW_H, VIEW_W, WATERLINE, SEA_BOTTOM } from './consts';
 import { composeWave, scoreTargetForWave, BASE_SCORE, AIR, GROUND, type SpawnKind } from './waves';
 import { defaultStats, type PlayerStats } from './upgrades';
 import type { WavePerformance } from './wave-rating';
 import { resolveBlasts, circlesOverlap, type Blast, type BlastTarget } from './collision';
-import { stepDepthCharge, steerHoming, clampSubDepth } from './entities/physics';
+import { stepDepthCharge, steerHoming, clampSubDepth, stepPlayerVelocity } from './entities/physics';
 import type { Sub, DepthCharge, Projectile, Particle, Player } from './entities/types';
 import { angleTo, easeAngle } from './aim';
 import { generateTerrain, surfaceAt, isWater, onLZ, type Terrain } from './terrain';
@@ -26,6 +26,8 @@ const MINE_CHAIN_R = 30;
 const FUSE_R = 12;
 export const SCOUT_BLAST_R = 30;
 const PROJECTILE_INTERCEPT_R = 7;
+const POINT_DEFENSE_R = 36;
+const MISSILE_ACQUIRE_R = Math.hypot(ARENA_W, VIEW_H);
 const DAMAGE = { torpedo: 20, sam: 25, flak: 15, water: 10 } as const;
 
 function isHostileProjectile(p: Projectile): boolean {
@@ -81,6 +83,16 @@ export class World {
     this.terrain = generateTerrain(biomeForAct(1), rng);
   }
 
+  setStats(stats: PlayerStats): void {
+    const healthRatio = this.stats.maxHp > 0 ? this.player.hp / this.stats.maxHp : 0;
+    this.stats = stats;
+    this.player.hp = Math.min(stats.maxHp, healthRatio * stats.maxHp);
+  }
+
+  applyWaveRecovery(): void {
+    this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.fieldRepair);
+  }
+
   get cleared(): boolean {
     return this.subs.length === 0;
   }
@@ -113,10 +125,13 @@ export class World {
     this.waveHpStart = this.player.hp;
     this.waveMaxHpStart = this.stats.maxHp;
     this.waveHadChargeTargets = this.subs.length > 0;
-    this.missileStock = Math.min(this.stats.missileCap, this.missileStock + (this.stats.missileCap > 0 ? 1 : 0));
+    this.missileStock = Math.min(
+      this.stats.missileCap,
+      this.missileStock + (this.stats.missileCap > 0 ? this.stats.missileRefill : 0),
+    );
     if (this.stats.sonar) {
       this.sonarTimer = 3;
-      this.sonarCycle = 8;
+      this.sonarCycle = this.stats.sonarInterval;
       this.events.push('sonar-ping');
     }
   }
@@ -205,7 +220,7 @@ export class World {
     if (this.stats.sonar) {
       this.sonarCycle -= dt;
       if (this.sonarCycle <= 0) {
-        this.sonarCycle = 8;
+        this.sonarCycle = this.stats.sonarInterval;
         this.sonarTimer = 3;
         this.events.push('sonar-ping');
       }
@@ -233,11 +248,14 @@ export class World {
 
   private updatePlayer(dt: number, intent: Intent): void {
     const p = this.player;
-    p.vx += intent.move.x * this.stats.accel * dt;
-    p.vy += intent.move.y * this.stats.accel * dt;
-    const drag = Math.exp(-3 * dt);
-    p.vx *= drag;
-    p.vy *= drag;
+    stepPlayerVelocity(
+      p,
+      intent.move,
+      this.stats.accel,
+      this.stats.speedScale,
+      this.stats.handlingScale,
+      dt,
+    );
     p.x = Math.max(PLAYER_R, Math.min(ARENA_W - PLAYER_R, p.x + p.vx * dt));
     p.y = Math.max(10, p.y + p.vy * dt);
     const aim = intent.aim ?? null;
@@ -287,16 +305,25 @@ export class World {
     if (p.fireCd > 0) p.fireCd -= dt;
     if (intent.fire && p.fireCd <= 0) {
       const a = (intent.aim ?? null) ? p.turretAngle : (p.facing > 0 ? 0 : Math.PI);
-      const sx = p.x + Math.cos(a) * 12;
       const sy = p.y + 4 + Math.sin(a) * 12;
       if (sy <= WATERLINE - 2) {
-        p.fireCd = 0.12;
-        this.shots.push({
-          id: this.nextId++, ptype: 'bullet',
-          x: sx, y: sy,
-          vx: Math.cos(a) * 300, vy: Math.sin(a) * 300,
-          age: 0, life: 0.7, damage: 8,
-        });
+        p.fireCd = this.stats.cannonCooldown;
+        const spread = Math.PI / 30;
+        for (let i = 0; i < this.stats.cannonShots; i++) {
+          const shotAngle = this.stats.cannonShots === 1
+            ? a
+            : a + (i / (this.stats.cannonShots - 1) - 0.5) * spread;
+          this.shots.push({
+            id: this.nextId++, ptype: 'bullet',
+            x: p.x + Math.cos(shotAngle) * 12,
+            y: p.y + 4 + Math.sin(shotAngle) * 12,
+            vx: Math.cos(shotAngle) * 300,
+            vy: Math.sin(shotAngle) * 300,
+            age: 0, life: 0.7,
+            damage: this.stats.cannonDamage,
+            pierceRemaining: this.stats.cannonPierce,
+          });
+        }
         p.muzzleT = 0.05;
         this.events.push('cannon-fire');
       }
@@ -320,10 +347,10 @@ export class World {
       if (p.pdCd > 0) p.pdCd -= dt;
       if (p.pdCd <= 0) {
         const near = this.shots.find(s =>
-          isHostileProjectile(s) && Math.hypot(s.x - p.x, s.y - p.y) < 36);
+          isHostileProjectile(s) && Math.hypot(s.x - p.x, s.y - p.y) < POINT_DEFENSE_R);
         if (near) {
           near.age = near.life;
-          p.pdCd = 0.4;
+          p.pdCd = this.stats.pointDefenseCooldown;
           this.events.push('cannon-fire');
           this.boomParticles(near.x, near.y, 4);
         }
@@ -378,7 +405,12 @@ export class World {
       const nearTarget = this.subs.some(s =>
         circlesOverlap({ x: c.x, y: c.y, r: FUSE_R }, { x: s.x, y: s.y, r: SUB_R }));
       if ((wet && c.y > WATERLINE && nearTarget) || (wet && c.y >= SEA_BOTTOM - 4) || (!wet && c.y >= surf - 2)) {
-        blasts.push({ x: c.x, y: c.y, r: this.stats.blastRadius });
+        blasts.push({
+          x: c.x,
+          y: c.y,
+          r: this.stats.blastRadius,
+          damage: this.stats.chargeDamage,
+        });
         this.charges.splice(i, 1);
       }
     }
@@ -388,8 +420,14 @@ export class World {
       r: s.kind === 'mine' ? 5 : SUB_R,
       chainRadius: s.kind === 'mine' ? MINE_CHAIN_R : undefined,
     }));
-    const hitIds = resolveBlasts(blasts, targets);
-    const killed = this.subs.filter(s => hitIds.has(s.id));
+    const hitDamage = resolveBlasts(blasts, targets);
+    for (const s of this.subs) {
+      const damage = hitDamage.get(s.id);
+      if (damage === undefined) continue;
+      s.hp -= damage;
+      s.hitFlash = 0.1;
+    }
+    const killed = this.subs.filter(s => hitDamage.has(s.id) && s.hp <= 0);
     const destroyed = killed.filter(s => this.destroySub(s));
     if (destroyed.length > 0) {
       this.score += scoreBlast(destroyed.map(k => ({ kind: k.kind, y: k.y })));
@@ -566,7 +604,7 @@ export class World {
 
   private nearestAir(x: number, y: number): Sub | null {
     let best: Sub | null = null;
-    let bd = Infinity;
+    let bd = MISSILE_ACQUIRE_R * this.stats.missileAcquireScale;
     for (const s of this.subs) {
       if (!AIR.has(s.kind)) continue;
       const d = Math.hypot(s.x - x, s.y - y);
@@ -586,7 +624,7 @@ export class World {
         return;
       }
       const target = this.nearestAir(p.x, p.y);
-      if (target) steerHoming(p, target.x, target.y, 200, 3.0, dt);
+      if (target) steerHoming(p, target.x, target.y, 200, 3.0 * this.stats.missileSteering, dt);
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       for (const s of this.subs) {
@@ -641,7 +679,8 @@ export class World {
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
           s.hp -= GROUND.has(s.kind) ? p.damage * 0.5 : p.damage;
           s.hitFlash = 0.1;
-          p.age = p.life;
+          if ((p.pierceRemaining ?? 0) > 0) p.pierceRemaining = (p.pierceRemaining ?? 0) - 1;
+          else p.age = p.life;
           if (s.hp <= 0) this.destroyAndReward(s);
           else this.events.push('armor-hit');
           return;

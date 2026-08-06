@@ -2,6 +2,38 @@ import { WATERLINE, SEA_BOTTOM } from '../consts';
 import type { DepthCharge, Projectile, Sub } from './types';
 
 const AIR_GRAVITY = 320;
+const PLAYER_DRAG = 3;
+
+export function stepPlayerVelocity(
+  body: { vx: number; vy: number },
+  move: { x: number; y: number },
+  accel: number,
+  speedScale: number,
+  handlingScale: number,
+  dt: number,
+): void {
+  body.vx += move.x * accel * speedScale * dt;
+  body.vy += move.y * accel * speedScale * dt;
+  const drag = Math.exp(-PLAYER_DRAG * dt);
+  body.vx *= drag;
+  body.vy *= drag;
+
+  const terminal = accel / PLAYER_DRAG * speedScale;
+  body.vx = Math.max(-terminal, Math.min(terminal, body.vx));
+  body.vy = Math.max(-terminal, Math.min(terminal, body.vy));
+
+  const rawMagnitude = Math.hypot(move.x, move.y);
+  const inputMagnitude = Math.min(1, rawMagnitude);
+  if (inputMagnitude === 0 || handlingScale >= 1) return;
+  const ux = move.x / rawMagnitude;
+  const uy = move.y / rawMagnitude;
+  const parallel = body.vx * ux + body.vy * uy;
+  const perpendicularX = body.vx - parallel * ux;
+  const perpendicularY = body.vy - parallel * uy;
+  const handlingDamping = Math.pow(Math.max(0, handlingScale), dt * inputMagnitude);
+  body.vx = parallel * ux + perpendicularX * handlingDamping;
+  body.vy = parallel * uy + perpendicularY * handlingDamping;
+}
 
 export function stepDepthCharge(c: DepthCharge, sinkSpeed: number, dt: number, wet = true): void {
   if (!wet || c.y < WATERLINE) {

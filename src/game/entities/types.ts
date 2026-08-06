@@ -29,6 +29,7 @@ export interface Projectile extends Entity {
   age: number;
   life: number;
   damage: number;
+  pierceRemaining?: number;
 }
 
 export interface Particle extends Entity {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stepDepthCharge, steerHoming, clampSubDepth } from './physics';
+import { stepDepthCharge, steerHoming, clampSubDepth, stepPlayerVelocity } from './physics';
 import { WATERLINE, SEA_BOTTOM } from '../consts';
 import type { DepthCharge, Projectile, Sub } from './types';
 
@@ -30,6 +30,42 @@ describe('steerHoming', () => {
     const angle = Math.abs(Math.atan2(p.vy, p.vx));
     expect(angle).toBeLessThanOrEqual(2.5 / 60 + 1e-9);
     expect(Math.hypot(p.vx, p.vy)).toBeCloseTo(100, 5);
+  });
+});
+
+describe('stepPlayerVelocity', () => {
+  it('preserves default terminal movement and scales it with speedScale', () => {
+    const baseline = { vx: 0, vy: 0 };
+    const faster = { vx: 0, vy: 0 };
+    for (let i = 0; i < 600; i++) {
+      stepPlayerVelocity(baseline, { x: 1, y: 0 }, 340, 1, 1, 1 / 60);
+      stepPlayerVelocity(faster, { x: 1, y: 0 }, 340, 1.12, 1, 1 / 60);
+    }
+
+    expect(baseline.vx).toBeCloseTo(110.5236, 3);
+    expect(faster.vx).toBeCloseTo(123.7864, 3);
+    expect(faster.vy).toBe(0);
+  });
+
+  it('damps only velocity perpendicular to non-zero input when handlingScale is lower', () => {
+    const baseline = { vx: 20, vy: 100 };
+    const improved = { vx: 20, vy: 100 };
+
+    stepPlayerVelocity(baseline, { x: 1, y: 0 }, 340, 1, 1, 0.5);
+    stepPlayerVelocity(improved, { x: 1, y: 0 }, 340, 1, 0.9, 0.5);
+
+    expect(improved.vx).toBeCloseTo(baseline.vx, 8);
+    expect(Math.abs(improved.vy)).toBeLessThan(Math.abs(baseline.vy));
+  });
+
+  it('adds no handling damping when input is zero', () => {
+    const baseline = { vx: 40, vy: -25 };
+    const improved = { vx: 40, vy: -25 };
+
+    stepPlayerVelocity(baseline, { x: 0, y: 0 }, 340, 1, 1, 0.25);
+    stepPlayerVelocity(improved, { x: 0, y: 0 }, 340, 1, 0.9, 0.25);
+
+    expect(improved).toEqual(baseline);
   });
 });
 
