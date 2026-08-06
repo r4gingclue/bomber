@@ -9,6 +9,7 @@ import type { SoundBank } from '../audio/sound-bank';
 import { VoicePolicy } from '../audio/voice-policy';
 import { MusicStateMonitor, type MusicSnapshot, type MusicState } from '../audio/music-state';
 import type { MusicDirector } from '../audio/music-director';
+import { AUDIO_MANIFEST } from '../audio/manifest';
 
 export interface AudioBusControls {
   setMaster(value: number): void;
@@ -21,6 +22,8 @@ export interface AudioOptions {
   setInterval?: (callback: () => void, ms: number) => number;
   bank?: SoundBank;
   director?: MusicDirector;
+  createBank?: (context: AudioContext) => SoundBank;
+  createDirector?: (context: AudioContext, musicBus: GainNode) => MusicDirector;
 }
 
 export class AudioSys {
@@ -33,10 +36,14 @@ export class AudioSys {
   private settings: AudioPreferences;
   private readonly policy = new VoicePolicy();
   private readonly voices = new Map<string, AudioBufferSourceNode>();
+  private readonly ambienceSources = new Map<string, AudioBufferSourceNode>();
   private voiceId = 0;
   private readonly musicMonitor = new MusicStateMonitor();
   private currentMusicState: MusicState = 'menu';
-  private readonly options: Required<Pick<AudioOptions, 'createContext' | 'setInterval'>> & Pick<AudioOptions, 'bank' | 'director'>;
+  private bank?: SoundBank;
+  private director?: MusicDirector;
+  private readonly options: Required<Pick<AudioOptions, 'createContext' | 'setInterval'>>
+    & Pick<AudioOptions, 'createBank' | 'createDirector'>;
 
   constructor(
     private readonly storage: StorageLike | undefined = browserStorage(),
@@ -46,9 +53,11 @@ export class AudioSys {
     this.options = {
       createContext: options.createContext ?? (() => new AudioContext()),
       setInterval: options.setInterval ?? ((callback, ms) => window.setInterval(callback, ms)),
-      bank: options.bank,
-      director: options.director,
+      createBank: options.createBank,
+      createDirector: options.createDirector,
     };
+    this.bank = options.bank;
+    this.director = options.director;
     this.settings = loadAudioPreferences(storage);
     this.applyLevels();
   }
@@ -78,11 +87,13 @@ export class AudioSys {
     this.musicBus.connect(this.master);
     this.sfxBus.connect(this.master);
     this.master.connect(this.ctx.destination);
+    this.bank ??= this.options.createBank?.(this.ctx);
+    this.director ??= this.options.createDirector?.(this.ctx, this.musicBus);
     this.buses = this.nodeBusControls();
     this.applyLevels();
     this.nextNote = this.ctx.currentTime + 0.1;
     this.options.setInterval(() => this.schedule(), 30);
-    try { await this.options.bank?.loadSfx(); } catch { /* cue fallbacks remain available */ }
+    try { await this.bank?.loadSfx(); } catch { /* cue fallbacks remain available */ }
   }
 
   toggleMute(): void {
@@ -102,8 +113,8 @@ export class AudioSys {
 
   handle(event: AudioEvent): void {
     if (!this.ctx) return;
-    if (event === 'wave-clear' || event === 'game-over') this.options.director?.stinger(event);
-    const cue = this.options.bank?.cue(event);
+    if (event === 'wave-clear' || event === 'game-over') this.director?.stinger(event);
+    const cue = this.bank?.cue(event);
     if (cue && cue.buffers.length > 0) {
       const decision = this.policy.request(event, cue);
       if (decision) {
@@ -139,9 +150,42 @@ export class AudioSys {
     }
   }
 
+  async loadMusic(): Promise<void> {
+    const bank = this.bank;
+    const director = this.director;
+    const family = AUDIO_MANIFEST.musicFamily;
+    if (!bank || !director || !family) return;
+    try {
+      await bank.loadMusic();
+      const stems = Object.fromEntries(family.stems.map(name => [name, bank.music(name)?.buffers[0]]));
+      director.start(stems, family.loopDuration);
+      director.setState(this.currentMusicState);
+      this.startAmbience('rotor');
+      this.startAmbience('ocean-wind');
+    } catch {
+      // The procedural score remains available when music loading fails.
+    }
+  }
+
+  private startAmbience(name: string): void {
+    if (!this.ctx || !this.musicBus || this.ambienceSources.has(name)) return;
+    const cue = this.bank?.music(name);
+    const buffer = cue?.buffers[0];
+    if (!cue || !buffer) return;
+    const source = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    source.buffer = buffer;
+    source.loop = true;
+    gain.gain.value = cue.gain;
+    source.connect(gain);
+    gain.connect(this.musicBus);
+    source.start();
+    this.ambienceSources.set(name, source);
+  }
+
   updateMusic(snapshot: MusicSnapshot): MusicState {
     this.currentMusicState = this.musicMonitor.sample(snapshot);
-    this.options.director?.setState(this.currentMusicState);
+    this.director?.setState(this.currentMusicState);
     this.buses?.setMusic(this.currentMusicState === 'silent' ? 0 : this.settings.music);
     return this.currentMusicState;
   }

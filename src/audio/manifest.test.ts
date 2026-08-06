@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateAudioManifest, type AudioManifest } from './manifest';
+import { AUDIO_MANIFEST, validateAudioManifest, type AudioManifest } from './manifest';
 
 const cue = (url: string) => ({
   variants: [url], bus: 'sfx' as const, gain: 0.8, pitch: [0.95, 1.05] as [number, number],
@@ -28,5 +28,30 @@ describe('validateAudioManifest', () => {
       cues: { 'cannon-fire': invalid, 'player-missile-launch': cue('/audio/shared.ogg') },
       music: {},
     })).toThrow();
+  });
+
+  it('keeps every adaptive stem on one shared 32-bar timeline', () => {
+    expect(AUDIO_MANIFEST.musicFamily).toEqual({
+      bpm: 128,
+      beatsPerBar: 4,
+      bars: 32,
+      loopDuration: 60,
+      stems: ['bed', 'tension', 'action', 'danger'],
+    });
+    expect(() => validateAudioManifest(AUDIO_MANIFEST)).not.toThrow();
+  });
+
+  it('rejects music metadata whose bars do not equal its loop duration', () => {
+    expect(() => validateAudioManifest({
+      cues: {},
+      music: {},
+      musicFamily: {
+        bpm: 120,
+        beatsPerBar: 4,
+        bars: 8,
+        loopDuration: 15,
+        stems: [],
+      },
+    })).toThrow('music loop duration');
   });
 });

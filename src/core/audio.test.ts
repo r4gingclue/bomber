@@ -3,6 +3,7 @@ import { AudioSys, type AudioBusControls } from './audio';
 import type { StorageLike } from './audio-preferences';
 import { SoundBank } from '../audio/sound-bank';
 import type { AudioManifest } from '../audio/manifest';
+import { MusicDirector, type MusicScheduler } from '../audio/music-director';
 
 function memoryStorage(): StorageLike {
   let value: string | null = null;
@@ -126,4 +127,49 @@ it('applies adaptive music state without changing the saved music volume', () =>
   expect(audio.musicState).toBe('silent');
   expect(musicLevel).toBe(0);
   expect(audio.preferences.music).toBe(0.55);
+});
+
+it('loads decoded adaptive stems and starts them on the shared timeline', async () => {
+  const bed = { duration: 60 } as AudioBuffer;
+  const tension = { duration: 60 } as AudioBuffer;
+  const rotor = { duration: 4 } as AudioBuffer;
+  const wind = { duration: 4 } as AudioBuffer;
+  const musicSpec = (url: string) => ({
+    variants: [url], bus: 'music' as const, gain: 0.8, pitch: [1, 1] as [number, number],
+    cooldownMs: 0, concurrency: 1, priority: 1, loop: true,
+  });
+  const bank = new SoundBank({
+    cues: {}, music: {
+      bed: musicSpec('/bed.ogg'), tension: musicSpec('/tension.ogg'),
+      rotor: musicSpec('/rotor.ogg'), 'ocean-wind': musicSpec('/wind.ogg'),
+    },
+    musicFamily: { bpm: 128, beatsPerBar: 4, bars: 32, loopDuration: 60, stems: ['bed', 'tension'] },
+  }, async url => new TextEncoder().encode(url).buffer, async data => {
+    const url = new TextDecoder().decode(data);
+    if (url.includes('bed')) return bed;
+    if (url.includes('rotor')) return rotor;
+    if (url.includes('wind')) return wind;
+    return tension;
+  });
+  const starts: string[] = [];
+  const scheduler: MusicScheduler = {
+    now: () => 4,
+    startLoop: (name) => {
+      starts.push(name);
+      return { ramp() {}, stop() {} };
+    },
+    playStinger() {},
+  };
+  const fake = fakeContext();
+  const audio = new AudioSys(memoryStorage(), undefined, {
+    createContext: () => fake.context,
+    setInterval: () => 1,
+    createBank: () => bank,
+    createDirector: () => new MusicDirector(scheduler),
+  });
+
+  await audio.resume();
+  await audio.loadMusic();
+  expect(starts).toEqual(['bed', 'tension']);
+  expect(fake.starts).toEqual(expect.arrayContaining([rotor, wind]));
 });

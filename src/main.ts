@@ -22,6 +22,10 @@ import type {
   GraphicsHarnessScene,
 } from './testing/graphics-harness';
 import type { HelicopterPose } from './render/helicopter';
+import { AUDIO_MANIFEST } from './audio/manifest';
+import { SoundBank } from './audio/sound-bank';
+import { MusicDirector } from './audio/music-director';
+import { WebAudioMusicScheduler } from './audio/web-audio-scheduler';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -116,7 +120,18 @@ async function boot(): Promise<void> {
   const activeInput = new Input();
   activeInput.touchSeen = browserPrefersDefaultTouchUi();
   input = activeInput;
-  const audio = new AudioSys();
+  const audio = new AudioSys(undefined, undefined, {
+    createBank: context => new SoundBank(
+      AUDIO_MANIFEST,
+      async url => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Audio request failed: ${response.status}`);
+        return response.arrayBuffer();
+      },
+      data => context.decodeAudioData(data),
+    ),
+    createDirector: (context, bus) => new MusicDirector(new WebAudioMusicScheduler(context, bus)),
+  });
   document.addEventListener('visibilitychange', () => {
     void audio.setHidden(document.hidden);
   });
@@ -134,7 +149,9 @@ async function boot(): Promise<void> {
 
   activeInput.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
   activeInput.attach(uiCanvas);
-  activeInput.onGesture = () => audio.resume();
+  activeInput.onGesture = () => {
+    void audio.resume().then(() => audio.loadMusic());
+  };
   activeInput.toCanvas = (clientX, clientY) => clientToWorld(clientX, clientY, viewport);
   activeInput.isGamePoint = (clientX, clientY) =>
     clientX >= viewport.x && clientX <= viewport.x + viewport.width

@@ -44,6 +44,14 @@ it('plays transition stingers without resetting loops', () => {
   expect(fake.starts).toHaveLength(1);
 });
 
+it('keeps the bed quietly audible on the menu', () => {
+  const fake = scheduler();
+  const director = new MusicDirector(fake.api);
+  director.start({ bed: {} as AudioBuffer }, 16);
+  director.setState('menu');
+  expect(fake.ramps).toContainEqual({ name: 'bed', value: 0.45, duration: 2 });
+});
+
 it('calculates the next shared bar boundary', () => {
   expect(nextBarBoundary(10.1, 120, 4)).toBe(12);
 });

@@ -46,7 +46,7 @@ export function nextBarBoundary(now: number, bpm: number, beatsPerBar: number): 
 
 function targetGain(name: string, state: MusicState): number {
   if (state === 'silent') return 0;
-  if (state === 'menu') return name === 'menu' ? 1 : 0;
+  if (state === 'menu') return name === 'bed' ? 0.45 : 0;
   if (name === 'bed') return state === 'low-health' ? 0.8 : 1;
   if (name === 'tension') return state === 'combat-high' || state === 'low-health' ? 1 : 0;
   if (name === 'action') return state === 'combat-high' ? 1 : state === 'low-health' ? 0.8 : 0;

@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "licenseAllowlist": ["CC0-1.0", "CC-BY-3.0", "CC-BY-4.0"],
+  "sources": {
+    "foozle-eerie-space": {
+      "title": "Eerie Space Music",
+      "creator": "Potriel; distributed by Foozle",
+      "assetPage": "https://foozlecc.itch.io/eerie-space-music",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["adaptive music family"]
+    },
+    "kenney-impact": {
+      "title": "Impact Sounds",
+      "creator": "Kenney",
+      "assetPage": "https://www.kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["mechanical drops", "armor impacts", "damage impacts"]
+    },
+    "kenney-interface": {
+      "title": "Interface Sounds",
+      "creator": "Kenney",
+      "assetPage": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["UI confirm", "upgrade", "wave stingers"]
+    },
+    "residue-sfx": {
+      "title": "Residue-sfx",
+      "creator": "FacadeGaikan",
+      "assetPage": "https://opengameart.org/content/residue-sfx",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["cannon", "missile launch", "explosions"]
+    },
+    "skippy-water": {
+      "title": "Skippy Fish Water Sound Collection",
+      "creator": "jcpmcdonald",
+      "assetPage": "https://opengameart.org/content/skippy-fish-water-sound-collection",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["water entry"]
+    },
+    "sonar-ping": {
+      "title": "Sonar Ping",
+      "creator": "Spiceman",
+      "assetPage": "https://opengameart.org/content/sonar-ping",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["sonar ping"]
+    },
+    "propeller-loop": {
+      "title": "Propeller (Cartoon) Loop",
+      "creator": "Mish7913",
+      "assetPage": "https://opengameart.org/content/propeller-cartoon-loop",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["rotor ambience"]
+    },
+    "wind": {
+      "title": "Wind",
+      "creator": "IgnasD",
+      "assetPage": "https://opengameart.org/content/wind",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "roles": ["ocean wind ambience"]
+    }
+  },
+  "outputs": [
+    { "path": "sfx/cannon-1.ogg", "source": "residue-sfx", "role": "cannon variant" },
+    { "path": "sfx/cannon-2.ogg", "source": "residue-sfx", "role": "cannon variant" },
+    { "path": "sfx/cannon-3.ogg", "source": "residue-sfx", "role": "cannon variant" },
+    { "path": "sfx/player-missile-1.ogg", "source": "residue-sfx", "role": "player missile launch" },
+    { "path": "sfx/player-missile-2.ogg", "source": "residue-sfx", "role": "player missile launch" },
+    { "path": "sfx/enemy-sam-1.ogg", "source": "residue-sfx", "role": "enemy SAM launch" },
+    { "path": "sfx/enemy-sam-2.ogg", "source": "residue-sfx", "role": "enemy SAM launch" },
+    { "path": "sfx/charge-drop-1.ogg", "source": "kenney-impact", "role": "charge mechanism" },
+    { "path": "sfx/charge-drop-2.ogg", "source": "kenney-impact", "role": "charge mechanism" },
+    { "path": "sfx/water-entry.ogg", "source": "skippy-water", "role": "water entry" },
+    { "path": "sfx/underwater-explosion-1.ogg", "source": "residue-sfx", "role": "underwater explosion" },
+    { "path": "sfx/underwater-explosion-2.ogg", "source": "residue-sfx", "role": "underwater explosion" },
+    { "path": "sfx/underwater-explosion-3.ogg", "source": "residue-sfx", "role": "underwater explosion" },
+    { "path": "sfx/aircraft-explosion-1.ogg", "source": "residue-sfx", "role": "aircraft explosion" },
+    { "path": "sfx/aircraft-explosion-2.ogg", "source": "residue-sfx", "role": "aircraft explosion" },
+    { "path": "sfx/aircraft-explosion-3.ogg", "source": "residue-sfx", "role": "aircraft explosion" },
+    { "path": "sfx/armor-hit-1.ogg", "source": "kenney-impact", "role": "armor impact" },
+    { "path": "sfx/armor-hit-2.ogg", "source": "kenney-impact", "role": "armor impact" },
+    { "path": "sfx/player-damaged-1.ogg", "source": "kenney-impact", "role": "player damage" },
+    { "path": "sfx/player-damaged-2.ogg", "source": "kenney-impact", "role": "player damage" },
+    { "path": "sfx/sonar-ping.ogg", "source": "sonar-ping", "role": "sonar" },
+    { "path": "sfx/ui-confirm.ogg", "source": "kenney-interface", "role": "UI confirm" },
+    { "path": "sfx/upgrade-selected.ogg", "source": "kenney-interface", "role": "upgrade" },
+    { "path": "sfx/wave-start.ogg", "source": "kenney-interface", "role": "wave start" },
+    { "path": "sfx/wave-clear.ogg", "source": "kenney-interface", "role": "wave clear" },
+    { "path": "sfx/game-over.ogg", "source": "kenney-interface", "role": "game over" },
+    { "path": "ambience/rotor.ogg", "source": "propeller-loop", "role": "rotor loop" },
+    { "path": "ambience/ocean-wind.ogg", "source": "wind", "role": "ocean wind loop" },
+    { "path": "music/menu.ogg", "source": "foozle-eerie-space", "role": "menu track" },
+    { "path": "music/intro.ogg", "source": "foozle-eerie-space", "role": "act-intro track" },
+    { "path": "music/bed.ogg", "source": "foozle-eerie-space", "role": "low combat bed" },
+    { "path": "music/tension.ogg", "source": "foozle-eerie-space", "role": "tension layer" },
+    { "path": "music/action.ogg", "source": "foozle-eerie-space", "role": "percussion/action layer" },
+    { "path": "music/danger.ogg", "source": "foozle-eerie-space", "role": "low-health texture" },
+    { "path": "music/combat-fallback.ogg", "source": "foozle-eerie-space", "role": "stereo fallback when stems are unavailable" }
+  ],
+  "transformPolicy": "Trim shared regions sample-accurately, remove DC offset, preserve headroom, and encode Ogg Vorbis without peak normalization.",
+  "transformations": {
+    "adaptive-stems": "Track 02 full-song stems; shared samples 0-2,880,000 (0-60 s at 48 kHz); bed=pad01, tension=synth+rythm at 0.65, action=percussion+kick+clap+shaker at 0.45, danger=lead+synth02 at 0.6; 25-30 Hz high-pass; 30 ms boundary fades; native Vorbis quality 10.",
+    "menu-intro": "Original Foozle track 1.ogg and track 2.ogg retained without re-encoding; Track 02 full mix also trimmed to the shared 60 s region as the combat fallback.",
+    "cannon-launch-explosions": "Residue boom, zipper, ventilator, and spit files filtered and resampled into role-specific pitch variants; gains remain 0.68-0.85; native Vorbis quality 6-7.",
+    "impacts-ui": "Selected Kenney metal/plate impacts and interface cues converted to stereo Vorbis quality 6; player-damage and game-over cues receive conservative low-pass or pitch treatment.",
+    "water-sonar-ambience": "Water re-entry and sonar sources high-pass filtered; propeller and Wind.ogg filtered and attenuated for continuous background playback; stereo Vorbis quality 7."
+  }
+}
