@@ -4,8 +4,8 @@ import { RunProgression } from './run-progression';
 import type { WaveRating } from './wave-rating';
 
 describe('buildPostWaveView', () => {
-  it('returns display-ready rating components, award, and resulting point balance', () => {
-    const progression = new RunProgression({ points: 3 });
+  it('returns supplied display data without mutating progression when called repeatedly', () => {
+    const progression = new RunProgression({ points: 5 });
     const rating: WaveRating = {
       score: 40,
       accuracy: 20,
@@ -13,16 +13,20 @@ describe('buildPostWaveView', () => {
       total: 90,
       bonusPoint: true,
     };
+    const award = { base: 1, bonus: 1, total: 2 } as const;
 
-    expect(buildPostWaveView(rating, progression)).toEqual({
+    const expected = {
       rating,
-      award: { base: 1, bonus: 1, total: 2 },
+      award,
       balance: 5,
-    });
+    };
+
+    expect(buildPostWaveView(rating, award, 5)).toEqual(expected);
+    expect(buildPostWaveView(rating, award, 5)).toEqual(expected);
+    expect(progression.points).toBe(5);
   });
 
-  it('awards only the base point below the performance-bonus threshold', () => {
-    const progression = new RunProgression();
+  it('preserves a supplied base-only award and balance', () => {
     const rating: WaveRating = {
       score: 30,
       accuracy: 20,
@@ -31,9 +35,10 @@ describe('buildPostWaveView', () => {
       bonusPoint: false,
     };
 
-    expect(buildPostWaveView(rating, progression)).toMatchObject({
+    expect(buildPostWaveView(rating, { base: 1, bonus: 0, total: 1 }, 7)).toEqual({
+      rating,
       award: { base: 1, bonus: 0, total: 1 },
-      balance: 1,
+      balance: 7,
     });
   });
 });

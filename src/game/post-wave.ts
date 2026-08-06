@@ -1,13 +1,15 @@
-import { RunProgression } from './run-progression';
 import type { WaveRating } from './wave-rating';
 
 export interface PostWaveView {
   rating: WaveRating;
-  award: ReturnType<RunProgression['awardWave']>;
+  award: { base: 1; bonus: 0 | 1; total: 1 | 2 };
   balance: number;
 }
 
-export function buildPostWaveView(rating: WaveRating, progression: RunProgression): PostWaveView {
-  const award = progression.awardWave(rating.total);
-  return { rating, award, balance: progression.points };
+export function buildPostWaveView(
+  rating: WaveRating,
+  award: { base: 1; bonus: 0 | 1; total: 1 | 2 },
+  balance: number,
+): PostWaveView {
+  return { rating, award, balance };
 }
