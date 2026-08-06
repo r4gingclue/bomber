@@ -1,5 +1,5 @@
-import type { Rng } from '../core/rng';
-import type { Biome } from './biomes';
+import { mulberry32, type Rng } from '../core/rng';
+import { biomeForAct, type Biome } from './biomes';
 
 export type SpawnKind =
   | 'patrol' | 'hunter' | 'missile' | 'gunboat' | 'mine'
@@ -8,6 +8,11 @@ export type SpawnKind =
 export const COST: Record<SpawnKind, number> = {
   patrol: 2, mine: 2, hunter: 4, gunboat: 5, missile: 6,
   scout: 3, gunship: 7, mchopper: 8, aagun: 5, tank: 6,
+};
+
+export const BASE_SCORE: Record<SpawnKind, number> = {
+  patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
+  scout: 120, gunship: 300, mchopper: 350, aagun: 180, tank: 250,
 };
 
 export const UNLOCK: Record<SpawnKind, number> = {
@@ -41,4 +46,20 @@ export function composeWave(wave: number, rng: Rng, biome: Biome = 'sea'): Spawn
     budget -= COST[k];
   }
   return out;
+}
+
+function referenceScoreTarget(wave: number, act: number): number {
+  const budgetWave = wave % 4 === 0 ? wave + 2 : wave;
+  const seed = ((act * 0x9e3779b9) ^ wave) >>> 0;
+  const baseScore = composeWave(budgetWave, mulberry32(seed), biomeForAct(act))
+    .reduce((sum, kind) => sum + BASE_SCORE[kind], 0);
+  return Math.ceil(baseScore * 1.15);
+}
+
+/**
+ * Stable wave-rating target: a fixed reference composition plus a 15% attainable skill allowance.
+ */
+export function scoreTargetForWave(wave: number, act: number): number {
+  const target = referenceScoreTarget(wave, act);
+  return wave > 1 ? Math.max(target, scoreTargetForWave(wave - 1, act)) : target;
 }

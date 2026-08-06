@@ -1,11 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import { composeWave, waveBudget, COST, UNLOCK, POOLS, AIR, GROUND, type SpawnKind } from './waves';
+import { composeWave, scoreTargetForWave, waveBudget, COST, UNLOCK, POOLS, AIR, GROUND, type SpawnKind } from './waves';
 import { mulberry32 } from '../core/rng';
 
 describe('waveBudget', () => {
   it('scales with wave number', () => {
     expect(waveBudget(1)).toBe(12);
     expect(waveBudget(5)).toBeGreaterThan(waveBudget(4));
+  });
+});
+
+describe('scoreTargetForWave', () => {
+  it('is repeatable for a wave and act', () => {
+    expect(scoreTargetForWave(6, 2)).toBe(scoreTargetForWave(6, 2));
+  });
+
+  it('is positive and nondecreasing across the waves in each act', () => {
+    for (let act = 1; act <= 3; act++) {
+      const firstWave = (act - 1) * 4 + 1;
+      const targets = Array.from({ length: 4 }, (_, index) => scoreTargetForWave(firstWave + index, act));
+      expect(targets.every(target => target > 0)).toBe(true);
+      expect(targets.every((target, index) => index === 0 || target >= targets[index - 1])).toBe(true);
+    }
+  });
+
+  it('sets each finale target above the preceding wave', () => {
+    for (let act = 1; act <= 3; act++) {
+      const finaleWave = act * 4;
+      expect(scoreTargetForWave(finaleWave, act)).toBeGreaterThan(scoreTargetForWave(finaleWave - 1, act));
+    }
   });
 });
 

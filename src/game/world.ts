@@ -1,8 +1,9 @@
 import type { Rng } from '../core/rng';
 import type { Intent } from '../core/input';
 import { ARENA_W, VIEW_W, WATERLINE, SEA_BOTTOM } from './consts';
-import { composeWave, AIR, GROUND, type SpawnKind } from './waves';
+import { composeWave, scoreTargetForWave, BASE_SCORE, AIR, GROUND, type SpawnKind } from './waves';
 import { defaultStats, type PlayerStats } from './upgrades';
+import type { WavePerformance } from './wave-rating';
 import { resolveBlasts, circlesOverlap, type Blast, type BlastTarget } from './collision';
 import { stepDepthCharge, steerHoming, clampSubDepth } from './entities/physics';
 import type { Sub, DepthCharge, Projectile, Particle, Player } from './entities/types';
@@ -12,10 +13,7 @@ import { biomeForAct } from './biomes';
 import { stepScout, stepGunship, stepMchopper, stepAagun, stepTank } from './entities/ai';
 import type { AudioEvent } from '../core/audio-events';
 
-export const BASE_SCORE: Record<SpawnKind, number> = {
-  patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
-  scout: 120, gunship: 300, mchopper: 350, aagun: 180, tank: 250,
-};
+export { BASE_SCORE };
 
 const SUB_SPEED: Record<SpawnKind, number> = {
   patrol: 30, hunter: 40, missile: 25, gunboat: 0, mine: 6,
@@ -62,6 +60,12 @@ export class World {
   kills = 0;
   drops = 0;
   hitDrops = 0;
+  private waveScoreStart = 0;
+  private waveDropsStart = 0;
+  private waveHitDropsStart = 0;
+  private waveHpStart = 0;
+  private waveMaxHpStart = 0;
+  private waveHadChargeTargets = false;
   missileStock = 0;
   sonarTimer = 0;
   sonarCycle = 0;
@@ -85,11 +89,30 @@ export class World {
     return this.waveInAct >= 4 && this.cleared;
   }
 
+  wavePerformance(): WavePerformance {
+    return {
+      scoreEarned: this.score - this.waveScoreStart,
+      scoreTarget: scoreTargetForWave(this.wave, this.act),
+      drops: this.drops - this.waveDropsStart,
+      hitDrops: this.hitDrops - this.waveHitDropsStart,
+      hpStart: this.waveHpStart,
+      hpEnd: this.player.hp,
+      maxHpStart: this.waveMaxHpStart,
+      hadChargeTargets: this.waveHadChargeTargets,
+    };
+  }
+
   startWave(): void {
     this.wave++;
     this.waveInAct++;
     const budgetWave = this.waveInAct === 4 ? this.wave + 2 : this.wave; // finale stub: bigger wave
     for (const kind of composeWave(budgetWave, this.rng, biomeForAct(this.act))) this.spawn(kind);
+    this.waveScoreStart = this.score;
+    this.waveDropsStart = this.drops;
+    this.waveHitDropsStart = this.hitDrops;
+    this.waveHpStart = this.player.hp;
+    this.waveMaxHpStart = this.stats.maxHp;
+    this.waveHadChargeTargets = this.subs.length > 0;
     this.missileStock = Math.min(this.stats.missileCap, this.missileStock + (this.stats.missileCap > 0 ? 1 : 0));
     if (this.stats.sonar) {
       this.sonarTimer = 3;

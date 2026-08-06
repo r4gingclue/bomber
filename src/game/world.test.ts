@@ -111,6 +111,32 @@ describe('World', () => {
     expect(w.subs.every(s => s.kind === 'patrol')).toBe(true);
     expect(w.cleared).toBe(false);
   });
+
+  it('reports only the current wave score and charge performance with health loss', () => {
+    const w = new World(mulberry32(1));
+    w.score = 800;
+    w.drops = 2;
+    w.hitDrops = 1;
+    w.startWave();
+
+    w.score += 300;
+    w.drops++;
+    w.hitDrops++;
+    w.player.hp = 85;
+
+    expect(w.wavePerformance()).toMatchObject({
+      scoreEarned: 300,
+      scoreTarget: expect.any(Number),
+      drops: 1,
+      hitDrops: 1,
+      hpStart: 100,
+      hpEnd: 85,
+      maxHpStart: 100,
+      hadChargeTargets: true,
+    });
+    expect(w.wavePerformance().scoreTarget).toBeGreaterThan(0);
+  });
+
   it('is cleared when all subs are gone', () => {
     const w = new World(mulberry32(1));
     w.startWave();
