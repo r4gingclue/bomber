@@ -797,6 +797,17 @@ export class Renderer {
     audioSettings?: AudioSettingsView,
     progressionView?: ProgressionRenderView,
   ): void {
+    // Canvas width/height changes reset its context state. Reassert the
+    // CSS-space transform every frame so responsive overlays cannot render at
+    // backing-store scale after a DPR or viewport transition.
+    this.uiCtx.setTransform(
+      this.uiCtx.canvas.width / Math.max(1, layout.viewport.w),
+      0,
+      0,
+      this.uiCtx.canvas.height / Math.max(1, layout.viewport.h),
+      0,
+      0,
+    );
     this.uiCtx.clearRect(0, 0, layout.viewport.w, layout.viewport.h);
     if (phase === 'results') {
       if (progressionView?.results && progressionView.layout) {

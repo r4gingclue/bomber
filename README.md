@@ -2,7 +2,8 @@
 
 Modern browser reimagining of the 2003 J2ME game "AH-1 Sea Bomber" (Mr. Goodliving Ltd.).
 Arcade roguelite: pilot a helicopter over open sea, depth-charge submarines through
-escalating waves, pick upgrade cards between waves.
+escalating waves, earn perk points, and invest them in a four-branch upgrade tree
+between waves.
 
 The original jar is kept in the repo root for design reference only; none of its
 assets or code ship in this game.
@@ -22,8 +23,9 @@ assets or code ship in this game.
   DROP = depth charge
 - Gamepad (standard mapping): left stick / D-pad = movement · right stick = aim ·
   A / RT = cannon · B / LT = depth charge · X / RB = missile · A / Start =
-  confirm · A, B, X = choose upgrade cards 1, 2, 3. On the menu, B toggles
-  mute, X raises Music, and Y raises SFX.
+  confirm. On upgrade screens, D-pad / left stick or LB/RB selects a branch or
+  node · A purchases · B refunds a pending purchase · Start begins the next
+  wave. On the menu, B toggles mute, X raises Music, and Y raises SFX.
 
 Touch controls appear immediately on touch-first devices without a fine pointer
 or hover-capable mouse, and also appear after the first touch on hybrid devices.
@@ -61,3 +63,8 @@ buffered cues with procedural fallbacks, CC0 ambience, and synchronized adaptive
 combat stems. See [audio credits](docs/assets/AUDIO-CREDITS.md), the
 [audio ledger](docs/assets/audio-sources.json), and the
 [cinematic-audio playtest](docs/testing/cinematic-audio-playtest.md).
+
+The run-progression flow uses transparent post-wave ratings and temporary
+between-wave purchase/refund transactions. See the
+[run-progression playtest](docs/testing/run-progression-playtest.md) for the
+full regression and responsive input checklist.

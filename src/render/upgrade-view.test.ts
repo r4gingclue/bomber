@@ -5,13 +5,14 @@ import { RunProgression } from '../game/run-progression';
 import { UPGRADE_NODES } from '../game/upgrade-tree';
 import { Renderer } from './renderer';
 import { upgradeLayout } from './upgrade-layout';
+import { fitViewport } from './viewport';
 import {
   buildUpgradeNodeRenderPlan,
   buildUpgradeTreeView,
   perkPointHudText,
   type UpgradeTextRegionPlan,
 } from './upgrade-view';
-import type { UiRect } from './ui-layout';
+import { uiLayout, type UiRect } from './ui-layout';
 
 it('marks nodes as purchased, pending, affordable, or locked with a reason', () => {
   const progression = new RunProgression({ points: 6 });
@@ -157,15 +158,17 @@ it.each([
   expectLinesInside(plan.detail!);
 });
 
-function recordingContext(): {
+function recordingContext(backingWidth = 960, backingHeight = 540): {
   ctx: CanvasRenderingContext2D;
   texts: string[];
   lineSegments: string[];
   draws: { text: string; x: number; baseline: number; clip?: UiRect }[];
+  transforms: number[][];
 } {
   const texts: string[] = [];
   const lineSegments: string[] = [];
   const draws: { text: string; x: number; baseline: number; clip?: UiRect }[] = [];
+  const transforms: number[][] = [];
   const clipStack: (UiRect | undefined)[] = [];
   let currentClip: UiRect | undefined;
   let pendingRect: UiRect | undefined;
@@ -178,6 +181,7 @@ function recordingContext(): {
     beginPath: () => { pendingRect = undefined; },
     rect: (x: number, y: number, w: number, h: number) => { pendingRect = { x, y, w, h }; },
     clip: () => { currentClip = pendingRect; },
+    setTransform: (...values: number[]) => { transforms.push(values); },
     moveTo: (x: number, y: number) => lineSegments.push(`M${x},${y}`),
     lineTo: (x: number, y: number) => lineSegments.push(`L${x},${y}`),
     stroke: () => undefined,
@@ -193,8 +197,9 @@ function recordingContext(): {
     lineWidth: 1,
     font: '',
     textAlign: 'left',
+    canvas: { width: backingWidth, height: backingHeight },
   } as unknown as CanvasRenderingContext2D;
-  return { ctx, texts, lineSegments, draws };
+  return { ctx, texts, lineSegments, draws, transforms };
 }
 
 function rendererFixture(): {
@@ -202,6 +207,7 @@ function rendererFixture(): {
   texts: string[];
   lineSegments: string[];
   draws: { text: string; x: number; baseline: number; clip?: UiRect }[];
+  transforms: number[][];
 } {
   const world = recordingContext();
   const ui = recordingContext();
@@ -210,8 +216,51 @@ function rendererFixture(): {
     texts: ui.texts,
     lineSegments: ui.lineSegments,
     draws: ui.draws,
+    transforms: ui.transforms,
   };
 }
+
+it.each([
+  ['compact landscape', 844, 390, 2],
+  ['forced-DPR portrait', 390, 844, 3],
+] as const)('restores the %s screen-space transform before drawing progression overlays', (_name, width, height, pixelRatio) => {
+  const world = recordingContext();
+  const ui = recordingContext(width * pixelRatio, height * pixelRatio);
+  const renderer = new Renderer(world.ctx, ui.ctx, {} as LoadedAssets);
+  const progression = new RunProgression({ points: 4 });
+  const tree = buildUpgradeTreeView(progression, 'defense', 'armor-1');
+  const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  const layout = uiLayout(width, height, insets, true, fitViewport(width, height, insets));
+  const upgrade = upgradeLayout(width, height, insets, 'defense', UPGRADE_NODES);
+
+  (renderer as unknown as {
+    drawScreenUi: (
+      world: unknown,
+      phase: 'upgrade',
+      touchUi: boolean,
+      layout: ReturnType<typeof uiLayout>,
+      audio: undefined,
+      progression: { points: number; layout: typeof upgrade; tree: typeof tree },
+    ) => void;
+  }).drawScreenUi({}, 'upgrade', true, layout, undefined, {
+    points: progression.points,
+    layout: upgrade,
+    tree,
+  });
+
+  if (_name === 'forced-DPR portrait') {
+    (renderer as unknown as {
+      drawScreenUi: (
+        world: unknown,
+        phase: 'results',
+        touchUi: boolean,
+        layout: ReturnType<typeof uiLayout>,
+      ) => void;
+    }).drawScreenUi({}, 'results', true, layout);
+  }
+
+  expect(ui.transforms).toContainEqual([pixelRatio, 0, 0, pixelRatio, 0, 0]);
+});
 
 it('renders compact card and focused detail lines at their planned baselines under matching clips', () => {
   const progression = new RunProgression();
