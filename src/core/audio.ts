@@ -1,3 +1,5 @@
+import { proceduralAudioKind, type AudioEvent } from './audio-events';
+
 export class AudioSys {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -24,8 +26,9 @@ export class AudioSys {
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.35;
   }
 
-  handle(ev: string): void {
+  handle(event: AudioEvent): void {
     if (!this.ctx) return;
+    const ev = proceduralAudioKind(event);
     switch (ev) {
       case 'boom': this.noise(0.5, 300, 0.5); break;
       case 'splash': this.noise(0.18, 1800, 0.15); break;

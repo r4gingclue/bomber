@@ -139,7 +139,7 @@ async function boot(): Promise<void> {
     if (state.phase === 'menu') startRun();
     else if (state.phase === 'gameover') {
       state.toMenu();
-      audio.handle('ui');
+      audio.handle('ui-confirm');
     } else if (state.phase === 'upgrade') {
       cards.forEach((_, i) => {
         const r = screenLayout.cards[i];
@@ -152,7 +152,7 @@ async function boot(): Promise<void> {
     world = new World(mulberry32(Date.now() >>> 0));
     world.startWave();
     state.start();
-    audio.handle('ui');
+    audio.handle('wave-start');
   }
 
   function pickCard(i: number): void {
@@ -169,7 +169,7 @@ async function boot(): Promise<void> {
       state.cardPicked();
       world.startWave();
     }
-    audio.handle('ui');
+    audio.handle('upgrade-selected');
   }
 
   window.addEventListener('keydown', e => {
@@ -181,7 +181,7 @@ async function boot(): Promise<void> {
     const intent = activeInput.poll();
     if (state.phase === 'menu' || state.phase === 'gameover') {
       if (activeInput.consumeConfirm()) {
-        if (state.phase === 'gameover') { state.toMenu(); audio.handle('ui'); }
+        if (state.phase === 'gameover') { state.toMenu(); audio.handle('ui-confirm'); }
         else startRun();
       }
       return;
@@ -225,7 +225,7 @@ async function boot(): Promise<void> {
     if (world.cleared) {
       state.waveCleared();
       cards = drawCards(mulberry32((Date.now() ^ world.wave * 7919) >>> 0), world.owned, 3, world.act);
-      audio.handle('ui');
+      audio.handle('wave-clear');
     }
   }
 

@@ -29,6 +29,80 @@ it('chooses impact visuals from terrain water state rather than impact height', 
 });
 
 describe('World', () => {
+  it('emits specific player weapon and charge events', () => {
+    const w = new World(mulberry32(1));
+    w.startWave();
+    w.events.length = 0;
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: true, fire: true, missile: false });
+
+    expect(w.events).toContain('cannon-fire');
+    expect(w.events).toContain('depth-charge-drop');
+  });
+
+  it('emits a specific player missile launch event', () => {
+    const w = new World(mulberry32(1));
+    w.stats.missileCap = 1;
+    w.missileStock = 1;
+    w.subs.push({ id: 800, kind: 'scout', hp: 8, x: w.player.x + 100, y: w.player.y, vx: 0, vy: 0, dir: -1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: true });
+
+    expect(w.events).toContain('player-missile-launch');
+  });
+
+  it('emits a specific SAM launch event from a missile submarine', () => {
+    const w = new World(mulberry32(1));
+    w.subs.push({ id: 801, kind: 'missile', hp: 25, x: w.player.x + 100, y: WATERLINE + 20, vx: 0, vy: 0, dir: -1, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.events).toContain('enemy-sam-launch');
+  });
+
+  it('distinguishes water entry and underwater detonation', () => {
+    const w = new World(mulberry32(1));
+    const waterCol = w.terrain.water.findIndex(Boolean);
+    const x = waterCol * 8 + 4;
+    w.charges.push({ id: 802, x, y: WATERLINE, vx: 0, vy: 20 });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.events).toContain('water-entry');
+
+    w.events.length = 0;
+    w.charges[0].y = 269;
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.events).toContain('underwater-explosion');
+  });
+
+  it('emits specific impact, destruction, damage, and death events', () => {
+    const w = new World(mulberry32(1));
+    const target = { id: 803, kind: 'scout' as const, hp: 16, x: w.player.x + 50, y: w.player.y, vx: 0, vy: 0, dir: -1 as const, fireTimer: 99, surfaceTimer: 0, surfaced: false, hitFlash: 0 };
+    w.subs.push(target);
+    w.shots.push({ id: 804, ptype: 'bullet', x: target.x, y: target.y, vx: 0, vy: 0, age: 0, life: 1, damage: 8 });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.events).toContain('armor-hit');
+
+    w.events.length = 0;
+    target.hp = 1;
+    w.shots.push({ id: 805, ptype: 'bullet', x: target.x, y: target.y, vx: 0, vy: 0, age: 0, life: 1, damage: 8 });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.events).toContain('aircraft-explosion');
+
+    w.events.length = 0;
+    w.player.hp = 10;
+    w.player.iframes = 0;
+    w.shots.push({ id: 806, ptype: 'sam', x: w.player.x, y: w.player.y, vx: 0, vy: 0, age: 0, life: 1, damage: 25 });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+    expect(w.events).toContain('player-damaged');
+    expect(w.events).toContain('game-over');
+  });
+
+  it('emits a specific sonar cue', () => {
+    const w = new World(mulberry32(1));
+    w.stats.sonar = true;
+    w.startWave();
+    expect(w.events).toContain('sonar-ping');
+  });
+
   it('wave 1 spawns only patrol subs and is not cleared', () => {
     const w = new World(mulberry32(1));
     w.startWave();
@@ -131,7 +205,7 @@ describe('World', () => {
     const aim = { x: w.player.x, y: w.player.y + 100 };
     w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: true, missile: false, aim });
     expect(w.shots.filter(s => s.ptype === 'bullet').length).toBe(0);
-    expect(w.events).not.toContain('fire');
+    expect(w.events).not.toContain('cannon-fire');
   });
 
   it('facing does not flip while firing near-vertical', () => {
@@ -459,7 +533,7 @@ describe('World', () => {
 
     expect(w.shots.some(p => p.id === 722)).toBe(false);
     expect(w.shots.some(p => p.id === 723)).toBe(false);
-    expect(w.events).toContain('boom');
+    expect(w.events).toContain('armor-hit');
     expect(w.rings.some(r => r.x === x && r.y === y + 7)).toBe(true);
   });
 
@@ -564,6 +638,6 @@ describe('World', () => {
     expect(w.player.hp).toBe(100);
     expect(w.score).toBe(BASE_SCORE.scout);
     expect(w.kills).toBe(1);
-    expect(w.events.filter(e => e === 'boom')).toHaveLength(1);
+    expect(w.events.filter(e => e === 'aircraft-explosion')).toHaveLength(1);
   });
 });

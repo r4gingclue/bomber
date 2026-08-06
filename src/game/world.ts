@@ -10,6 +10,7 @@ import { angleTo, easeAngle } from './aim';
 import { generateTerrain, surfaceAt, isWater, onLZ, type Terrain } from './terrain';
 import { biomeForAct } from './biomes';
 import { stepScout, stepGunship, stepMchopper, stepAagun, stepTank } from './entities/ai';
+import type { AudioEvent } from '../core/audio-events';
 
 export const BASE_SCORE: Record<SpawnKind, number> = {
   patrol: 100, hunter: 200, missile: 250, gunboat: 150, mine: 50,
@@ -69,7 +70,7 @@ export class World {
   rings: { x: number; y: number; age: number }[] = [];
   private smokeT = 0;
   /** drained (cleared) by the frame consumer every update; never self-clears */
-  events: string[] = [];
+  events: AudioEvent[] = [];
   private nextId = 1;
 
   constructor(private rng: Rng) {
@@ -93,7 +94,7 @@ export class World {
     if (this.stats.sonar) {
       this.sonarTimer = 3;
       this.sonarCycle = 8;
-      this.events.push('ping');
+      this.events.push('sonar-ping');
     }
   }
 
@@ -110,7 +111,7 @@ export class World {
     this.shots.length = 0;
     this.particles.length = 0;
     this.rings.length = 0;
-    this.events.push('ping');
+    this.events.push('sonar-ping');
   }
 
   private spawn(kind: SpawnKind): void {
@@ -183,7 +184,7 @@ export class World {
       if (this.sonarCycle <= 0) {
         this.sonarCycle = 8;
         this.sonarTimer = 3;
-        this.events.push('ping');
+        this.events.push('sonar-ping');
       }
     }
     this.shake = Math.max(0, this.shake - 8 * dt);
@@ -239,10 +240,9 @@ export class World {
         p.vy = -140;
         this.damagePlayer(DAMAGE.water);
         if (isWater(this.terrain, p.x)) {
-          this.events.push('splash');
+          this.events.push('water-entry');
           this.splashParticles(p.x);
         } else {
-          this.events.push('hit');
           this.boomParticles(p.x, surf, 4);
         }
       }
@@ -258,7 +258,7 @@ export class World {
         });
         this.drops++;
       }
-      this.events.push('drop');
+      this.events.push('depth-charge-drop');
     }
     // autocannon
     if (p.fireCd > 0) p.fireCd -= dt;
@@ -275,7 +275,7 @@ export class World {
           age: 0, life: 0.7, damage: 8,
         });
         p.muzzleT = 0.05;
-        this.events.push('fire');
+        this.events.push('cannon-fire');
       }
     }
     if (intent.missile && this.missileStock > 0) {
@@ -289,7 +289,7 @@ export class World {
           vx: ((target.x - p.x) / d) * 200, vy: ((target.y - p.y) / d) * 200,
           age: 0, life: 4, damage: 24,
         });
-        this.events.push('fire');
+        this.events.push('player-missile-launch');
       }
     }
     // point defense
@@ -301,7 +301,7 @@ export class World {
         if (near) {
           near.age = near.life;
           p.pdCd = 0.4;
-          this.events.push('fire');
+          this.events.push('cannon-fire');
           this.boomParticles(near.x, near.y, 4);
         }
       }
@@ -324,9 +324,9 @@ export class World {
     if (p.iframes > 0) return;
     p.hp -= amount;
     p.iframes = 0.8;
-    this.events.push('hit');
+    this.events.push('player-damaged');
     this.shake = Math.min(8, this.shake + 4);
-    if (p.hp <= 0) this.events.push('die');
+    if (p.hp <= 0) this.events.push('game-over');
   }
 
   private updateCharges(dt: number): void {
@@ -336,7 +336,7 @@ export class World {
       const wet = isWater(this.terrain, c.x);
       const surf = surfaceAt(this.terrain, c.x);
       if (wet && c.y >= WATERLINE && c.y - c.vy * dt < WATERLINE) {
-        this.events.push('splash');
+        this.events.push('water-entry');
         this.splashParticles(c.x);
       }
       stepDepthCharge(c, this.stats.sinkSpeed, dt, wet);
@@ -379,7 +379,7 @@ export class World {
     for (const b of blasts) this.boomParticles(b.x, b.y, 10);
     for (const b of blasts) this.rings.push({ x: b.x, y: b.y, age: 0 });
     this.shake = Math.min(6, this.shake + 2);
-    this.events.push('boom');
+    this.events.push('underwater-explosion');
   }
 
   private updateSub(s: Sub, dt: number): void {
@@ -402,7 +402,7 @@ export class World {
             vx: ((p.x - s.x) / d) * 160, vy: ((p.y - s.y) / d) * 160,
             age: 0, life: 2.5, damage: 10,
           });
-          this.events.push('fire');
+          this.events.push('cannon-fire');
         }
         return;
       }
@@ -412,7 +412,7 @@ export class World {
           x: s.x, y: s.y, vx: 0, vy: -60,
           age: 0, life: 4, damage: DAMAGE.sam,
         });
-        this.events.push('fire');
+        this.events.push('enemy-sam-launch');
       }
       return;
     }
@@ -428,7 +428,7 @@ export class World {
           vx: Math.max(-140, Math.min(140, dx * 0.8)), vy: -200,
           age: 0, life: 3, damage: DAMAGE.flak,
         });
-        this.events.push('fire');
+        this.events.push('cannon-fire');
       }
       return;
     }
@@ -449,7 +449,7 @@ export class World {
           vx: Math.max(-120, Math.min(120, dx * 0.8)), vy: -180,
           age: 0, life: 3, damage: DAMAGE.flak,
         });
-        this.events.push('fire');
+        this.events.push('cannon-fire');
       }
       return;
     }
@@ -481,7 +481,7 @@ export class World {
           x: s.x, y: s.y - 8, vx: 0, vy: -90,
           age: 0, life: 5, damage: DAMAGE.torpedo,
         });
-        this.events.push('ping');
+        this.events.push('sonar-ping');
       }
     } else if (s.kind === 'missile') {
       s.surfaceTimer -= dt;
@@ -495,7 +495,7 @@ export class World {
           x: s.x, y: WATERLINE - 2, vx: 0, vy: -140,
           age: 0, life: 4, damage: DAMAGE.sam,
         });
-        this.events.push('fire');
+        this.events.push('enemy-sam-launch');
         this.splashParticles(s.x);
       } else if (s.surfaced && s.surfaceTimer <= 0) {
         s.surfaced = false;
@@ -511,7 +511,7 @@ export class World {
     this.boomParticles(s.x, s.y, 10);
     this.rings.push({ x: s.x, y: s.y, age: 0 });
     this.shake = Math.min(6, this.shake + 2);
-    this.events.push('boom');
+    this.events.push('aircraft-explosion');
   }
 
   private destroySub(s: Sub): boolean {
@@ -532,7 +532,7 @@ export class World {
       this.boomParticles(s.x, s.y, 10);
       this.rings.push({ x: s.x, y: s.y, age: 0 });
       this.shake = Math.min(6, this.shake + 2);
-      this.events.push('boom');
+      this.events.push(AIR.has(s.kind) ? 'aircraft-explosion' : GROUND.has(s.kind) ? 'armor-hit' : 'underwater-explosion');
     }
   }
 
@@ -573,6 +573,7 @@ export class World {
           s.hitFlash = 0.1;
           p.age = p.life;
           if (s.hp <= 0) this.destroyAndReward(s);
+          else this.events.push('armor-hit');
           return;
         }
       }
@@ -594,7 +595,7 @@ export class World {
     const wasAbove = p.y < WATERLINE;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    if (p.ptype === 'torpedo' && wasAbove !== p.y < WATERLINE) this.events.push('splash');
+    if (p.ptype === 'torpedo' && wasAbove !== p.y < WATERLINE) this.events.push('water-entry');
     if (p.ptype === 'bullet') {
       const wetB = isWater(this.terrain, p.x);
       if ((wetB && p.y > WATERLINE) || (!wetB && p.y >= surfaceAt(this.terrain, p.x))) {
@@ -609,7 +610,7 @@ export class World {
         rocket.age = rocket.life;
         this.boomParticles(rocket.x, rocket.y, 4);
         this.rings.push({ x: rocket.x, y: rocket.y, age: 0 });
-        this.events.push('boom');
+        this.events.push('armor-hit');
         return;
       }
       for (const s of this.subs) {
@@ -619,6 +620,7 @@ export class World {
           s.hitFlash = 0.1;
           p.age = p.life;
           if (s.hp <= 0) this.destroyAndReward(s);
+          else this.events.push('armor-hit');
           return;
         }
       }
