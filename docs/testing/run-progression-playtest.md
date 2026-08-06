@@ -136,16 +136,16 @@ before production code changes.
 ## Browser evidence
 
 The following observations were supplied by the controller on 2026-08-06. The
-two failure rows were fixed by the screen-canvas transform regression tests in
-`src/render/upgrade-view.test.ts`; no post-fix manual browser recheck is claimed
-here. Physical gamepad and full ordinary-run coverage remain unexecuted.
+two initial failures were fixed by the screen-canvas transform regression tests
+in `src/render/upgrade-view.test.ts` and manually rechecked afterward. Physical
+gamepad and full ordinary-run coverage remain unexecuted.
 
 | Run | URL / viewport / input | Result | Observations or evidence |
 | --- | --- | --- | --- |
-| Desktop results + tree | 1440 × 900 / keyboard-mouse | Not run | No controller evidence returned |
-| Portrait results + tree, forced DPR | `?harness=1&scene=results|upgrade-tree&freeze&touch-ui&dpr=3` at 390 × 844 | Failed before fix; post-fix recheck pending | Both overlays rendered at roughly one-third scale in the top-left while the CSS canvas filled the viewport. The renderer now restores the CSS-to-backing-store transform every screen-UI frame; automated regression passes. |
+| Desktop results + tree | 1440 × 900 / keyboard-mouse | Pass | Both overlays filled the expected centered panel; values, tabs, nodes, and continuation controls were visible without overlap. |
+| Portrait results + tree, forced DPR | `?harness=1&scene=results|upgrade-tree&freeze&touch-ui&dpr=3` at 390 × 844 | Pass after fix | Both overlays now fill the portrait viewport at readable scale; the tree detail region, footer, and Start Next Wave button remain visible. |
 | Landscape results | `?harness=1&scene=results&freeze&touch-ui` at 844 × 390 | Pass (pre-fix) | Results scene filled the viewport width. |
-| Landscape upgrade tree | `?harness=1&scene=upgrade-tree&freeze&touch-ui` at 844 × 390 | Failed before fix; post-fix recheck pending | Tree was clipped to roughly the left half. The same renderer transform regression now covers the compact-landscape DPR 2 path and passes. |
+| Landscape upgrade tree | `?harness=1&scene=upgrade-tree&freeze&touch-ui` at 844 × 390 | Pass after fix | The panel fills the usable width; all tabs, nodes, focused detail, footer, and Start Next Wave button are visible without clipping. |
 | Standard gamepad results + tree | Physical standard-mapping controller | Not run | No physical-controller evidence returned |
 | Ordinary run: rating, purchases, combat, reset, transition | Ordinary gameplay | Not run | No full-run evidence returned |
 

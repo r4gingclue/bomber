@@ -92,7 +92,7 @@ export const UPGRADE_NODES: UpgradeNode[] = [
   { id: 'airframe', branch: 'flight', name: 'Airframe', description: '12% more top speed and 10% less directional drift.', cost: 1, requires: [], apply: stats => { stats.speedScale *= BALANCE.airframeSpeed; stats.handlingScale *= BALANCE.airframeDrift; } },
   { id: 'turbo-2', branch: 'flight', name: 'Turbo Engine II', description: 'A further 20% more acceleration.', cost: 2, requires: ['turbo-1'], apply: stats => { stats.accel *= BALANCE.turboTwo; } },
   { id: 'sonar', branch: 'flight', name: 'Sonar', description: 'Outline submarines for three seconds every eight seconds.', cost: 2, requires: ['airframe'], apply: stats => { stats.sonar = true; } },
-  { id: 'advanced-avionics', branch: 'flight', name: 'Advanced Avionics', description: 'Reduce sonar cycle to six seconds and improve missile acquisition speed by 20%.', cost: 3, requires: ['turbo-2', 'sonar'], apply: stats => { stats.sonarInterval = BALANCE.sonarInterval; stats.missileAcquireScale *= BALANCE.avionicsAcquisition; } },
+  { id: 'advanced-avionics', branch: 'flight', name: 'Advanced Avionics', description: 'Reduce sonar cycle to six seconds and improve missile acquisition range by 20%.', cost: 3, requires: ['turbo-2', 'sonar'], apply: stats => { stats.sonarInterval = BALANCE.sonarInterval; stats.missileAcquireScale *= BALANCE.avionicsAcquisition; } },
 ];
 
 function validateNodes(nodes: readonly UpgradeNode[]): void {
