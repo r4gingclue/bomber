@@ -32,6 +32,7 @@ export class AudioSys {
   private musicBus: GainNode | null = null;
   private sfxBus: GainNode | null = null;
   private musicStep = 0;
+  private recordedMusicActive = false;
   private nextNote = 0;
   private settings: AudioPreferences;
   private readonly policy = new VoicePolicy();
@@ -158,7 +159,10 @@ export class AudioSys {
     try {
       await bank.loadMusic();
       const stems = Object.fromEntries(family.stems.map(name => [name, bank.music(name)?.buffers[0]]));
-      director.start(stems, family.loopDuration);
+      if (Object.values(stems).some(Boolean)) {
+        director.start(stems, family.loopDuration);
+        this.recordedMusicActive = true;
+      }
       director.setState(this.currentMusicState);
       this.startAmbience('rotor');
       this.startAmbience('ocean-wind');
@@ -272,6 +276,7 @@ export class AudioSys {
 
   /** 120 BPM lookahead scheduler: bass + arp + rotor thump. */
   private schedule(): void {
+    if (this.recordedMusicActive) return;
     const ctx = this.ctx!;
     const SIXTEENTH = 60 / 120 / 4;
     const BASS = [55, 55, 65.4, 49];             // A1 A1 C2 G1 per bar

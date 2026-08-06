@@ -34,6 +34,7 @@ it('controls master, music, and SFX buses independently', () => {
 
 function fakeContext() {
   const starts: AudioBuffer[] = [];
+  let oscillatorStarts = 0;
   let resumes = 0;
   let suspends = 0;
   const gain = () => ({
@@ -50,13 +51,13 @@ function fakeContext() {
       buffer: null as AudioBuffer | null, playbackRate: { value: 1 }, connect() {},
       start() { starts.push(this.buffer!); }, stop() {}, onended: null as (() => void) | null,
     }),
-    createOscillator: () => ({ type: 'sine', frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }),
+    createOscillator: () => ({ type: 'sine', frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() { oscillatorStarts++; }, stop() {} }),
     createBuffer: () => ({ getChannelData: () => new Float32Array(1) }),
     createBiquadFilter: () => ({ type: 'lowpass', frequency: { value: 0 }, connect() {} }),
     resume: async () => { resumes++; },
     suspend: async () => { suspends++; },
   } as unknown as AudioContext;
-  return { context, starts, get resumes() { return resumes; }, get suspends() { return suspends; } };
+  return { context, starts, get oscillatorStarts() { return oscillatorStarts; }, get resumes() { return resumes; }, get suspends() { return suspends; } };
 }
 
 it('creates and resumes its context idempotently and retries creation failures', async () => {
@@ -161,9 +162,10 @@ it('loads decoded adaptive stems and starts them on the shared timeline', async 
     playStinger() {},
   };
   const fake = fakeContext();
+  let schedulerTick = () => {};
   const audio = new AudioSys(memoryStorage(), undefined, {
     createContext: () => fake.context,
-    setInterval: () => 1,
+    setInterval: callback => { schedulerTick = callback; return 1; },
     createBank: () => bank,
     createDirector: () => new MusicDirector(scheduler),
   });
@@ -172,4 +174,6 @@ it('loads decoded adaptive stems and starts them on the shared timeline', async 
   await audio.loadMusic();
   expect(starts).toEqual(['bed', 'tension']);
   expect(fake.starts).toEqual(expect.arrayContaining([rotor, wind]));
+  schedulerTick();
+  expect(fake.oscillatorStarts).toBe(0);
 });
