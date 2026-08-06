@@ -1,6 +1,7 @@
 import { RENDER_H, RENDER_SCALE, RENDER_W } from './game/consts';
 import { Loop } from './core/loop';
 import { Input } from './core/input';
+import { browserPrefersDefaultTouchUi } from './core/input-capabilities';
 import { AudioSys } from './core/audio';
 import { mulberry32 } from './core/rng';
 import { World } from './game/world';
@@ -113,6 +114,7 @@ async function boot(): Promise<void> {
   }
   const assets = await loadAssets(GRAPHICS_MANIFEST);
   const activeInput = new Input();
+  activeInput.touchSeen = browserPrefersDefaultTouchUi();
   input = activeInput;
   const audio = new AudioSys();
   const state = new StateMachine();
@@ -176,23 +178,21 @@ async function boot(): Promise<void> {
 
   function update(dt: number): void {
     elapsed += dt;
+    const intent = activeInput.poll();
     if (state.phase === 'menu' || state.phase === 'gameover') {
       if (activeInput.consumeConfirm()) {
         if (state.phase === 'gameover') { state.toMenu(); audio.handle('ui'); }
         else startRun();
       }
-      activeInput.poll(); // drain queued edges
       return;
     }
     if (state.phase === 'upgrade') {
       const k = activeInput.consumeCardKey();
       if (k >= 0) pickCard(k);
-      activeInput.poll();
       return;
     }
     if (state.phase === 'actIntro') {
       introT -= dt;
-      activeInput.poll();
       if (introT <= 0) {
         state.introDone();
         world.startWave();
@@ -200,7 +200,6 @@ async function boot(): Promise<void> {
       return;
     }
     // playing
-    const intent = activeInput.poll();
     if (harness.scene && harness.freeze) return;
     if (harness.scene === 'heavy-combat') {
       harnessRestage -= dt;

@@ -18,6 +18,13 @@ assets or code ship in this game.
 - Touch: visible MOVE circle = movement · unoccupied non-button touch area
   (normally right side) = aim stick · FIRE = tap for cannon, hold for missile ·
   DROP = depth charge
+- Gamepad (standard mapping): left stick / D-pad = movement · right stick = aim ·
+  A / RT = cannon · B / LT = depth charge · X / RB = missile · A / Start =
+  confirm · A, B, X = choose upgrade cards 1, 2, 3
+
+Touch controls appear immediately on touch-first devices without a fine pointer
+or hover-capable mouse, and also appear after the first touch on hybrid devices.
+Connected standard-mapping gamepads are detected automatically while the game runs.
 
 ## Develop
 

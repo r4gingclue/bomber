@@ -1,5 +1,6 @@
 import { RENDER_H, RENDER_SCALE, RENDER_W } from '../game/consts';
 import { uiLayout, type UiCircle } from '../render/ui-layout';
+import { GamepadInput } from './gamepad';
 
 export interface Intent {
   move: { x: number; y: number };
@@ -49,8 +50,10 @@ export class Input {
   private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
   private mouseAim: { x: number; y: number } | null = null;
+  private gamepadAim: { dx: number; dy: number } | null = null;
   /** true once any touch input has been seen (renderer shows touch UI) */
   touchSeen = false;
+  gamepadConnected = false;
   /** main.ts sets this to receive screen-space taps for UI hit testing */
   onTap: ((cx: number, cy: number) => void) | null = null;
   /** main.ts sets this to convert client coords → simulation coords */
@@ -59,6 +62,8 @@ export class Input {
   isGamePoint: ((x: number, y: number) => boolean) | null = null;
   /** any user gesture happened (for audio unlock) */
   onGesture: (() => void) | null = null;
+
+  constructor(private readonly gamepad = new GamepadInput()) {}
 
   attach(el: HTMLElement): void {
     window.addEventListener('keydown', e => {
@@ -150,6 +155,13 @@ export class Input {
   }
 
   poll(): Intent {
+    const gamepad = this.gamepad.poll();
+    this.gamepadConnected = gamepad.connected;
+    this.gamepadAim = gamepad.aim.x !== 0 || gamepad.aim.y !== 0
+      ? { dx: gamepad.aim.x * 40, dy: gamepad.aim.y * 40 }
+      : null;
+    if (gamepad.confirmPressed) this.confirmQueued = true;
+    if (gamepad.cardPressed >= 0) this.cardKeyQueued = gamepad.cardPressed;
     let x = 0, y = 0;
     if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) x -= 1;
     if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) x += 1;
@@ -161,17 +173,19 @@ export class Input {
       if (Math.abs(nx) > 0.15) x = nx;
       if (Math.abs(ny) > 0.15) y = ny;
     }
-    const drop = this.dropQueued;
+    if (gamepad.move.x !== 0) x = gamepad.move.x;
+    if (gamepad.move.y !== 0) y = gamepad.move.y;
+    const drop = this.dropQueued || gamepad.dropPressed;
     this.dropQueued = false;
     this.queueHeldTouchMissiles();
     const touchFire = this.touchFireQueued;
     this.touchFireQueued = false;
-    const missile = this.missileQueued;
+    const missile = this.missileQueued || gamepad.missilePressed;
     this.missileQueued = false;
     return {
       move: { x, y },
       drop,
-      fire: this.keys.has('KeyF') || this.mouseFire || touchFire,
+      fire: this.keys.has('KeyF') || this.mouseFire || touchFire || gamepad.fire,
       missile,
       aim: null,
     };
@@ -207,7 +221,9 @@ export class Input {
 
   /** Raw aim-stick displacement in client px while active, else null. */
   aimStickDir(): { dx: number; dy: number } | null {
-    return this.aimStick.active ? { dx: this.aimStick.dx, dy: this.aimStick.dy } : null;
+    return this.aimStick.active
+      ? { dx: this.aimStick.dx, dy: this.aimStick.dy }
+      : this.gamepadAim;
   }
 
   consumeConfirm(): boolean {

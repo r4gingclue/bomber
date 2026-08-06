@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Input, touchButtons, touchControls } from './input';
+import { GamepadInput, type GamepadLike } from './gamepad';
 import { clientToWorld } from '../render/viewport';
 import { uiLayout } from '../render/ui-layout';
 
@@ -28,6 +29,20 @@ function setupInput(): { input: Input; canvas: EventTarget; keyboard: EventTarge
   return { input, canvas, keyboard };
 }
 
+function gamepad(axes: number[], pressed: number[]): GamepadLike {
+  return {
+    id: 'Standard Controller',
+    index: 0,
+    connected: true,
+    mapping: 'standard',
+    axes,
+    buttons: Array.from({ length: 18 }, (_, button) => ({
+      pressed: pressed.includes(button),
+      value: pressed.includes(button) ? 1 : 0,
+    })),
+  };
+}
+
 beforeEach(() => {
   now = 0;
   vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -54,6 +69,33 @@ it('maps render-space touch controls back to the matching simulation hit region'
     y: renderFire.y / 2,
     r: renderFire.r / 2,
   });
+});
+
+it('combines standard gamepad movement, aim, and actions with input intent', () => {
+  const controller = new GamepadInput(() => [gamepad([0.7, -0.6, 0.8, -0.9], [0, 1, 2])]);
+  const input = new Input(controller);
+
+  expect(input.poll()).toMatchObject({
+    move: { x: 0.7, y: -0.6 },
+    fire: true,
+    drop: true,
+    missile: true,
+  });
+  expect(input.aimStickDir()).toEqual({ dx: 32, dy: -36 });
+  expect(input.gamepadConnected).toBe(true);
+});
+
+it('queues gamepad confirm and upgrade-card edges for phase handling', () => {
+  let current = gamepad([0, 0, 0, 0], []);
+  const input = new Input(new GamepadInput(() => [current]));
+  input.poll();
+  current = gamepad([0, 0, 0, 0], [0]);
+  input.poll();
+
+  expect(input.consumeConfirm()).toBe(true);
+  expect(input.consumeConfirm()).toBe(false);
+  expect(input.consumeCardKey()).toBe(0);
+  expect(input.consumeCardKey()).toBe(-1);
 });
 
 it('uses the visible MOVE circle as the movement hitbox', () => {
