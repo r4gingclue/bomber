@@ -1,5 +1,7 @@
 # Sea Bomber
 
+Play the latest release at [r4gingclue.github.io/bomber](https://r4gingclue.github.io/bomber/).
+
 Modern browser reimagining of the 2003 J2ME game "AH-1 Sea Bomber" (Mr. Goodliving Ltd.).
 Arcade roguelite: pilot a helicopter over open sea, depth-charge submarines through
 escalating waves, earn perk points, and invest them in a four-branch upgrade tree

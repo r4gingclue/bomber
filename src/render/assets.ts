@@ -63,7 +63,7 @@ export function validateManifestCoverage(m: AssetManifest): void {
 export const GRAPHICS_MANIFEST: AssetManifest = {
   player: {
     heli: {
-      url: '/assets/graphics/player-heli.png',
+      url: 'assets/graphics/player-heli.png',
       frames: Array.from({ length: 5 }, (_, index) => ({
         x: index * 192,
         y: 0,
@@ -73,32 +73,32 @@ export const GRAPHICS_MANIFEST: AssetManifest = {
     },
   },
   enemy: {
-    scout: { url: '/assets/graphics/enemies.png', x: 8, y: 32, w: 160, h: 80, drawW: 34, drawH: 17 },
-    gunship: { url: '/assets/graphics/enemies.png', x: 176, y: 8, w: 256, h: 128, drawW: 46, drawH: 23 },
-    mchopper: { url: '/assets/graphics/enemies.png', x: 440, y: 8, w: 256, h: 128, drawW: 44, drawH: 22 },
-    patrol: { url: '/assets/graphics/enemies.png', x: 704, y: 24, w: 192, h: 96, drawW: 36, drawH: 18 },
-    hunter: { url: '/assets/graphics/enemies.png', x: 904, y: 24, w: 192, h: 96, drawW: 36, drawH: 18 },
-    missile: { url: '/assets/graphics/enemies.png', x: 1104, y: 24, w: 192, h: 96, drawW: 38, drawH: 19 },
+    scout: { url: 'assets/graphics/enemies.png', x: 8, y: 32, w: 160, h: 80, drawW: 34, drawH: 17 },
+    gunship: { url: 'assets/graphics/enemies.png', x: 176, y: 8, w: 256, h: 128, drawW: 46, drawH: 23 },
+    mchopper: { url: 'assets/graphics/enemies.png', x: 440, y: 8, w: 256, h: 128, drawW: 44, drawH: 22 },
+    patrol: { url: 'assets/graphics/enemies.png', x: 704, y: 24, w: 192, h: 96, drawW: 36, drawH: 18 },
+    hunter: { url: 'assets/graphics/enemies.png', x: 904, y: 24, w: 192, h: 96, drawW: 36, drawH: 18 },
+    missile: { url: 'assets/graphics/enemies.png', x: 1104, y: 24, w: 192, h: 96, drawW: 38, drawH: 19 },
   },
   vehicle: {
-    tank: { url: '/assets/graphics/vehicles.png', x: 8, y: 8, w: 256, h: 128, drawW: 36, drawH: 18 },
-    aagun: { url: '/assets/graphics/vehicles.png', x: 272, y: 8, w: 224, h: 128, drawW: 28, drawH: 18 },
-    gunboat: { url: '/assets/graphics/vehicles.png', x: 504, y: 8, w: 288, h: 128, drawW: 42, drawH: 18 },
-    mine: { url: '/assets/graphics/vehicles.png', x: 800, y: 8, w: 128, h: 128, drawW: 16, drawH: 16 },
+    tank: { url: 'assets/graphics/vehicles.png', x: 8, y: 8, w: 256, h: 128, drawW: 36, drawH: 18 },
+    aagun: { url: 'assets/graphics/vehicles.png', x: 272, y: 8, w: 224, h: 128, drawW: 28, drawH: 18 },
+    gunboat: { url: 'assets/graphics/vehicles.png', x: 504, y: 8, w: 288, h: 128, drawW: 42, drawH: 18 },
+    mine: { url: 'assets/graphics/vehicles.png', x: 800, y: 8, w: 128, h: 128, drawW: 16, drawH: 16 },
   },
   weapon: {
-    bullet: { url: '/assets/graphics/weapons.png', x: 8, y: 60, w: 112, h: 56, drawW: 12, drawH: 6 },
-    shot: { url: '/assets/graphics/weapons.png', x: 128, y: 56, w: 128, h: 64, drawW: 16, drawH: 8 },
-    flak: { url: '/assets/graphics/weapons.png', x: 264, y: 56, w: 128, h: 64, drawW: 18, drawH: 9 },
-    torpedo: { url: '/assets/graphics/weapons.png', x: 400, y: 52, w: 192, h: 72, drawW: 24, drawH: 9 },
-    sam: { url: '/assets/graphics/weapons.png', x: 600, y: 8, w: 80, h: 160, drawW: 10, drawH: 20 },
-    pmissile: { url: '/assets/graphics/weapons.png', x: 688, y: 52, w: 192, h: 72, drawW: 24, drawH: 9 },
-    charge: { url: '/assets/graphics/weapons.png', x: 888, y: 16, w: 80, h: 144, drawW: 10, drawH: 14 },
+    bullet: { url: 'assets/graphics/weapons.png', x: 8, y: 60, w: 112, h: 56, drawW: 12, drawH: 6 },
+    shot: { url: 'assets/graphics/weapons.png', x: 128, y: 56, w: 128, h: 64, drawW: 16, drawH: 8 },
+    flak: { url: 'assets/graphics/weapons.png', x: 264, y: 56, w: 128, h: 64, drawW: 18, drawH: 9 },
+    torpedo: { url: 'assets/graphics/weapons.png', x: 400, y: 52, w: 192, h: 72, drawW: 24, drawH: 9 },
+    sam: { url: 'assets/graphics/weapons.png', x: 600, y: 8, w: 80, h: 160, drawW: 10, drawH: 20 },
+    pmissile: { url: 'assets/graphics/weapons.png', x: 688, y: 52, w: 192, h: 72, drawW: 24, drawH: 9 },
+    charge: { url: 'assets/graphics/weapons.png', x: 888, y: 16, w: 80, h: 144, drawW: 10, drawH: 14 },
   },
   scenery: {
-    militaryConcrete: '/assets/graphics/scenery/military-concrete.png',
-    ruralWall: '/assets/graphics/scenery/rural-wall.png',
-    desertStone: '/assets/graphics/scenery/desert-stone.png',
+    militaryConcrete: 'assets/graphics/scenery/military-concrete.png',
+    ruralWall: 'assets/graphics/scenery/rural-wall.png',
+    desertStone: 'assets/graphics/scenery/desert-stone.png',
   },
 };
 
