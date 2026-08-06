@@ -47,6 +47,14 @@ describe('stepPlayerVelocity', () => {
     expect(faster.vy).toBe(0);
   });
 
+  it('preserves default overspeed and decays it only through legacy drag', () => {
+    const rebound = { vx: 0, vy: -140 };
+
+    stepPlayerVelocity(rebound, { x: 0, y: 0 }, 340, 1, 1, 1 / 60);
+
+    expect(rebound.vy).toBeCloseTo(-133.1721, 3);
+  });
+
   it('damps only velocity perpendicular to non-zero input when handlingScale is lower', () => {
     const baseline = { vx: 20, vy: 100 };
     const improved = { vx: 20, vy: 100 };

@@ -103,6 +103,38 @@ describe('World', () => {
     expect(w.subs).toHaveLength(0);
   });
 
+  it('damages each target once while piercing to a separate target', () => {
+    const w = new World(mulberry32(1));
+    const target = (id: number, x: number) => ({
+      id, kind: 'gunboat' as const, hp: 24, x, y: w.player.y,
+      vx: 0, vy: 0, dir: 1 as const, fireTimer: 99, surfaceTimer: 0,
+      surfaced: false, hitFlash: 0,
+    });
+    const first = target(906, 300);
+    const second = target(907, 320);
+    w.subs.push(first, second);
+    w.shots.push({
+      id: 908, ptype: 'bullet', x: 295, y: w.player.y, vx: 300, vy: 0,
+      age: 0, life: 0.7, damage: 8, pierceRemaining: 1,
+    });
+    const idle = { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false };
+
+    w.update(1 / 60, idle);
+    expect(first.hp).toBe(16);
+    expect(second.hp).toBe(24);
+    expect(w.shots.some(s => s.id === 908)).toBe(true);
+
+    w.update(1 / 60, idle);
+    expect(first.hp).toBe(16);
+    expect(second.hp).toBe(24);
+    expect(w.shots.some(s => s.id === 908)).toBe(true);
+
+    w.update(1 / 60, idle);
+    expect(first.hp).toBe(16);
+    expect(second.hp).toBe(16);
+    expect(w.shots.some(s => s.id === 908)).toBe(false);
+  });
+
   it('applies numeric charge damage instead of unconditionally destroying blast targets', () => {
     const w = new World(mulberry32(1));
     w.setStats({ ...defaultStats(), chargeDamage: 12 });

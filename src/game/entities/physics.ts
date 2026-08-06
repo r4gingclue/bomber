@@ -18,10 +18,6 @@ export function stepPlayerVelocity(
   body.vx *= drag;
   body.vy *= drag;
 
-  const terminal = accel / PLAYER_DRAG * speedScale;
-  body.vx = Math.max(-terminal, Math.min(terminal, body.vx));
-  body.vy = Math.max(-terminal, Math.min(terminal, body.vy));
-
   const rawMagnitude = Math.hypot(move.x, move.y);
   const inputMagnitude = Math.min(1, rawMagnitude);
   if (inputMagnitude === 0 || handlingScale >= 1) return;

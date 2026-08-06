@@ -676,7 +676,9 @@ export class World {
       }
       for (const s of this.subs) {
         if (!this.isBulletTarget(s)) continue;
+        if (p.hitTargetIds?.has(s.id)) continue;
         if (circlesOverlap({ x: p.x, y: p.y, r: 2 }, { x: s.x, y: s.y, r: SUB_R })) {
+          (p.hitTargetIds ??= new Set()).add(s.id);
           s.hp -= GROUND.has(s.kind) ? p.damage * 0.5 : p.damage;
           s.hitFlash = 0.1;
           if ((p.pierceRemaining ?? 0) > 0) p.pierceRemaining = (p.pierceRemaining ?? 0) - 1;

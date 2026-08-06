@@ -30,6 +30,7 @@ export interface Projectile extends Entity {
   life: number;
   damage: number;
   pierceRemaining?: number;
+  hitTargetIds?: Set<number>;
 }
 
 export interface Particle extends Entity {
