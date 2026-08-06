@@ -130,6 +130,7 @@ async function boot(): Promise<void> {
   let elapsed = 0;
   let introT = 0;
   let harnessRestage = 0;
+  let musicSampleT = 0;
 
   activeInput.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
   activeInput.attach(uiCanvas);
@@ -181,6 +182,18 @@ async function boot(): Promise<void> {
 
   function update(dt: number): void {
     elapsed += dt;
+    musicSampleT -= dt;
+    if (musicSampleT <= 0) {
+      musicSampleT = 0.1;
+      const hostileShots = world.shots.filter(shot => shot.ptype !== 'bullet' && shot.ptype !== 'pmissile').length;
+      audio.updateMusic({
+        phase: state.phase,
+        pressure: world.subs.length + hostileShots * 0.5,
+        healthRatio: world.player.hp / world.stats.maxHp,
+        muted: audio.muted,
+        visible: !document.hidden,
+      });
+    }
     const intent = activeInput.poll();
     if (state.phase === 'menu' || state.phase === 'gameover') {
       if (activeInput.consumeConfirm()) {

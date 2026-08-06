@@ -113,3 +113,17 @@ it('suspends continuous audio while hidden and resumes when visible', async () =
   expect(fake.suspends).toBe(1);
   expect(fake.resumes).toBe(1);
 });
+
+it('applies adaptive music state without changing the saved music volume', () => {
+  let musicLevel = -1;
+  const audio = new AudioSys(memoryStorage(), {
+    setMaster() {}, setMusic: value => { musicLevel = value; }, setSfx() {},
+  });
+  const snapshot = { phase: 'playing' as const, pressure: 8, healthRatio: 1, muted: false, visible: true };
+  for (let i = 0; i < 12; i++) audio.updateMusic(snapshot);
+  expect(audio.musicState).toBe('combat-high');
+  audio.updateMusic({ ...snapshot, visible: false });
+  expect(audio.musicState).toBe('silent');
+  expect(musicLevel).toBe(0);
+  expect(audio.preferences.music).toBe(0.55);
+});

@@ -7,6 +7,8 @@ import {
 } from './audio-preferences';
 import type { SoundBank } from '../audio/sound-bank';
 import { VoicePolicy } from '../audio/voice-policy';
+import { MusicStateMonitor, type MusicSnapshot, type MusicState } from '../audio/music-state';
+import type { MusicDirector } from '../audio/music-director';
 
 export interface AudioBusControls {
   setMaster(value: number): void;
@@ -18,6 +20,7 @@ export interface AudioOptions {
   createContext?: () => AudioContext;
   setInterval?: (callback: () => void, ms: number) => number;
   bank?: SoundBank;
+  director?: MusicDirector;
 }
 
 export class AudioSys {
@@ -31,7 +34,9 @@ export class AudioSys {
   private readonly policy = new VoicePolicy();
   private readonly voices = new Map<string, AudioBufferSourceNode>();
   private voiceId = 0;
-  private readonly options: Required<Pick<AudioOptions, 'createContext' | 'setInterval'>> & Pick<AudioOptions, 'bank'>;
+  private readonly musicMonitor = new MusicStateMonitor();
+  private currentMusicState: MusicState = 'menu';
+  private readonly options: Required<Pick<AudioOptions, 'createContext' | 'setInterval'>> & Pick<AudioOptions, 'bank' | 'director'>;
 
   constructor(
     private readonly storage: StorageLike | undefined = browserStorage(),
@@ -42,6 +47,7 @@ export class AudioSys {
       createContext: options.createContext ?? (() => new AudioContext()),
       setInterval: options.setInterval ?? ((callback, ms) => window.setInterval(callback, ms)),
       bank: options.bank,
+      director: options.director,
     };
     this.settings = loadAudioPreferences(storage);
     this.applyLevels();
@@ -50,6 +56,7 @@ export class AudioSys {
   get muted(): boolean { return this.settings.muted; }
   get preferences(): Readonly<AudioPreferences> { return { ...this.settings }; }
   get ready(): boolean { return this.ctx !== null; }
+  get musicState(): MusicState { return this.currentMusicState; }
 
   /** Call on first user gesture (browser autoplay policy). Idempotent. */
   async resume(): Promise<void> {
@@ -95,6 +102,7 @@ export class AudioSys {
 
   handle(event: AudioEvent): void {
     if (!this.ctx) return;
+    if (event === 'wave-clear' || event === 'game-over') this.options.director?.stinger(event);
     const cue = this.options.bank?.cue(event);
     if (cue && cue.buffers.length > 0) {
       const decision = this.policy.request(event, cue);
@@ -129,6 +137,13 @@ export class AudioSys {
     } catch {
       // Lifecycle operations are best effort; gameplay remains independent.
     }
+  }
+
+  updateMusic(snapshot: MusicSnapshot): MusicState {
+    this.currentMusicState = this.musicMonitor.sample(snapshot);
+    this.options.director?.setState(this.currentMusicState);
+    this.buses?.setMusic(this.currentMusicState === 'silent' ? 0 : this.settings.music);
+    return this.currentMusicState;
   }
 
   private playBuffer(event: AudioEvent, priority: number, buffer: AudioBuffer, pitch: number, gain: number): void {
@@ -269,7 +284,7 @@ export class AudioSys {
 
   private applyLevels(): void {
     this.buses?.setMaster(this.settings.muted ? 0 : 1);
-    this.buses?.setMusic(this.settings.music);
+    this.buses?.setMusic(this.currentMusicState === 'silent' ? 0 : this.settings.music);
     this.buses?.setSfx(this.settings.sfx);
   }
 
