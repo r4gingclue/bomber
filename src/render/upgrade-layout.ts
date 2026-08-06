@@ -7,11 +7,20 @@ export interface UpgradeNodeLayout {
   rect: UiRect;
 }
 
+export interface UpgradeFooterLayout {
+  fontSize: number;
+  baseline: number;
+  inkTop: number;
+  inkBottom: number;
+  detailGap: number;
+}
+
 export interface UpgradeLayout {
   panel: UiRect;
   tabs: UiRect[];
   nodes: UpgradeNodeLayout[];
   detail: UiRect | null;
+  footer: UpgradeFooterLayout;
   continueButton: UiRect;
   resultsContinueButton: UiRect;
 }
@@ -70,13 +79,23 @@ export function upgradeLayout(
     h: buttonH,
   };
   const resultsContinueButton = { ...continueButton };
+  const footerFontSize = panel.h < 430 || panel.w < 500 ? 10 : 13;
+  const footerBaseline = continueButton.y - (panel.h < 430 ? 5 : 10);
+  const footer: UpgradeFooterLayout = {
+    fontSize: footerFontSize,
+    baseline: footerBaseline,
+    inkTop: footerBaseline - footerFontSize,
+    inkBottom: footerBaseline + Math.ceil(footerFontSize * 0.25),
+    detailGap: 2,
+  };
   const nodes = allNodes.filter(node => node.branch === branch);
   const columns = portrait ? 1 : 2;
   const rows = Math.max(1, Math.ceil(nodes.length / columns));
   const nodeGap = compact ? 6 : portrait ? 8 : 18;
   const nodeTop = tabs[0].y + tabs[0].h + nodeGap;
-  const footerClearance = compact || portrait ? 18 : nodeGap;
-  const contentBottom = continueButton.y - footerClearance;
+  const contentBottom = compact || portrait
+    ? footer.inkTop - footer.detailGap
+    : continueButton.y - nodeGap;
   const compactDetailW = compact ? Math.min(240, Math.max(160, contentW * 0.34)) : 0;
   const detail = compact
     ? {
@@ -112,6 +131,7 @@ export function upgradeLayout(
     panel,
     tabs,
     detail,
+    footer,
     nodes: nodes.map((node, index) => {
       const column = index % columns;
       const row = Math.floor(index / columns);

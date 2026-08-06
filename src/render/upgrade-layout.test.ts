@@ -73,6 +73,18 @@ it('keeps desktop descriptions in cards and gives portrait a bounded detail regi
     .toBeLessThanOrEqual(portrait.detail!.y);
 });
 
+it('keeps portrait detail strictly above the footer ink box', () => {
+  const layout = upgradeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 }, 'weapons', UPGRADE_NODES);
+
+  expect(layout.footer).toMatchObject({
+    fontSize: 10,
+    baseline: 732,
+    inkTop: 722,
+    detailGap: 2,
+  });
+  expect(layout.detail!.y + layout.detail!.h).toBeLessThanOrEqual(720);
+});
+
 it('uses a single scroll-free node path in portrait', () => {
   const layout = upgradeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 }, 'weapons', weaponNodes);
 

@@ -1074,8 +1074,8 @@ export class Renderer {
       );
     }
 
-    const footerSize = panel.h < 430 || panel.w < 500 ? 10 : 13;
-    const footerY = layout.continueButton.y - (panel.h < 430 ? 5 : 10);
+    const footerSize = layout.footer.fontSize;
+    const footerY = layout.footer.baseline;
     this.text('Select pending upgrade again to refund', panel.x + 18, footerY, footerSize, '#9fd8ff', false, ctx);
     this.rightText(`PERK POINTS ${view.points}`, panel.x + panel.w - 18, footerY, footerSize, '#ffd866');
 

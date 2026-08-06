@@ -116,6 +116,9 @@ it.each([
   for (const branch of ['weapons', 'ordnance', 'defense', 'flight'] as const) {
     const layout = upgradeLayout(w, h, insets, branch, UPGRADE_NODES);
     expect(Boolean(layout.detail)).toBe(usesDetail);
+    if (_name === 'portrait') {
+      expect(layout.detail!.y + layout.detail!.h).toBeLessThanOrEqual(720);
+    }
     for (const item of layout.nodes) {
       const node = buildUpgradeTreeView(progression, branch, item.node.id)
         .nodes.find(candidate => candidate.id === item.node.id)!;
