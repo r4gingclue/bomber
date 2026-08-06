@@ -117,6 +117,9 @@ async function boot(): Promise<void> {
   activeInput.touchSeen = browserPrefersDefaultTouchUi();
   input = activeInput;
   const audio = new AudioSys();
+  document.addEventListener('visibilitychange', () => {
+    void audio.setHidden(document.hidden);
+  });
   const state = new StateMachine();
   const renderer = new Renderer(ctx, uiCtx, assets);
   const motion = reducedMotionFlag(window.matchMedia('(prefers-reduced-motion: reduce)'));

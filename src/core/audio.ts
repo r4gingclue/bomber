@@ -5,11 +5,19 @@ import {
   type AudioPreferences,
   type StorageLike,
 } from './audio-preferences';
+import type { SoundBank } from '../audio/sound-bank';
+import { VoicePolicy } from '../audio/voice-policy';
 
 export interface AudioBusControls {
   setMaster(value: number): void;
   setMusic(value: number): void;
   setSfx(value: number): void;
+}
+
+export interface AudioOptions {
+  createContext?: () => AudioContext;
+  setInterval?: (callback: () => void, ms: number) => number;
+  bank?: SoundBank;
 }
 
 export class AudioSys {
@@ -20,25 +28,43 @@ export class AudioSys {
   private musicStep = 0;
   private nextNote = 0;
   private settings: AudioPreferences;
+  private readonly policy = new VoicePolicy();
+  private readonly voices = new Map<string, AudioBufferSourceNode>();
+  private voiceId = 0;
+  private readonly options: Required<Pick<AudioOptions, 'createContext' | 'setInterval'>> & Pick<AudioOptions, 'bank'>;
 
   constructor(
     private readonly storage: StorageLike | undefined = browserStorage(),
     private buses?: AudioBusControls,
+    options: AudioOptions = {},
   ) {
+    this.options = {
+      createContext: options.createContext ?? (() => new AudioContext()),
+      setInterval: options.setInterval ?? ((callback, ms) => window.setInterval(callback, ms)),
+      bank: options.bank,
+    };
     this.settings = loadAudioPreferences(storage);
     this.applyLevels();
   }
 
   get muted(): boolean { return this.settings.muted; }
   get preferences(): Readonly<AudioPreferences> { return { ...this.settings }; }
+  get ready(): boolean { return this.ctx !== null; }
 
   /** Call on first user gesture (browser autoplay policy). Idempotent. */
-  resume(): void {
+  async resume(): Promise<void> {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state === 'suspended') {
+        try { await this.ctx.resume(); } catch { /* retry on a later gesture */ }
+      }
       return;
     }
-    this.ctx = new AudioContext();
+    try {
+      this.ctx = this.options.createContext();
+    } catch {
+      this.ctx = null;
+      return;
+    }
     this.master = this.ctx.createGain();
     this.musicBus = this.ctx.createGain();
     this.sfxBus = this.ctx.createGain();
@@ -48,7 +74,8 @@ export class AudioSys {
     this.buses = this.nodeBusControls();
     this.applyLevels();
     this.nextNote = this.ctx.currentTime + 0.1;
-    window.setInterval(() => this.schedule(), 30);
+    this.options.setInterval(() => this.schedule(), 30);
+    try { await this.options.bank?.loadSfx(); } catch { /* cue fallbacks remain available */ }
   }
 
   toggleMute(): void {
@@ -68,6 +95,19 @@ export class AudioSys {
 
   handle(event: AudioEvent): void {
     if (!this.ctx) return;
+    const cue = this.options.bank?.cue(event);
+    if (cue && cue.buffers.length > 0) {
+      const decision = this.policy.request(event, cue);
+      if (decision) {
+        if (decision.replaceId) this.stopVoice(decision.replaceId);
+        const buffer = cue.buffers[decision.variant];
+        if (buffer) {
+          this.playBuffer(event, cue.priority, buffer, decision.pitch, decision.gain);
+          if (event === 'underwater-explosion' || event === 'aircraft-explosion') this.duckMusic();
+          return;
+        }
+      }
+    }
     const ev = proceduralAudioKind(event);
     switch (ev) {
       case 'boom': this.noise(0.5, 300, 0.5); break;
@@ -79,6 +119,51 @@ export class AudioSys {
       case 'ui': this.blip(520, 0.05, 'sine', 0.12); break;
       case 'die': this.sweep(440, 55, 0.8); break;
     }
+  }
+
+  async setHidden(hidden: boolean): Promise<void> {
+    if (!this.ctx) return;
+    try {
+      if (hidden) await this.ctx.suspend();
+      else await this.ctx.resume();
+    } catch {
+      // Lifecycle operations are best effort; gameplay remains independent.
+    }
+  }
+
+  private playBuffer(event: AudioEvent, priority: number, buffer: AudioBuffer, pitch: number, gain: number): void {
+    const id = `voice-${++this.voiceId}`;
+    const source = this.ctx!.createBufferSource();
+    const voiceGain = this.ctx!.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = pitch;
+    voiceGain.gain.value = gain;
+    source.connect(voiceGain);
+    voiceGain.connect(this.sfxBus!);
+    source.onended = () => {
+      this.voices.delete(id);
+      this.policy.end(id);
+    };
+    this.voices.set(id, source);
+    this.policy.start(id, event, priority, isCritical(event));
+    source.start();
+  }
+
+  private stopVoice(id: string): void {
+    const source = this.voices.get(id);
+    if (source) {
+      try { source.stop(); } catch { /* already ended */ }
+      this.voices.delete(id);
+    }
+    this.policy.end(id);
+  }
+
+  private duckMusic(): void {
+    if (!this.musicBus || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.musicBus.gain.cancelScheduledValues(now);
+    this.musicBus.gain.setTargetAtTime(this.settings.music * 0.45, now, 0.025);
+    this.musicBus.gain.setTargetAtTime(this.settings.music, now + 0.25, 0.12);
   }
 
   private env(gain: number, dur: number): GainNode {
@@ -211,4 +296,8 @@ function browserStorage(): StorageLike | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isCritical(event: AudioEvent): boolean {
+  return event === 'player-damaged' || event === 'game-over' || event === 'sonar-ping';
 }
