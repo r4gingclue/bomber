@@ -297,7 +297,7 @@ export class World {
       if (p.pdCd > 0) p.pdCd -= dt;
       if (p.pdCd <= 0) {
         const near = this.shots.find(s =>
-          isHostileProjectile(s) && Math.hypot(s.x - p.x, s.y - p.y) < 45);
+          isHostileProjectile(s) && Math.hypot(s.x - p.x, s.y - p.y) < 36);
         if (near) {
           near.age = near.life;
           p.pdCd = 0.4;

@@ -501,6 +501,43 @@ describe('World', () => {
     expect(w.shots.some(p => p.ptype === 'pmissile')).toBe(true);
   });
 
+  it('point defense only intercepts hostile projectiles at close range', () => {
+    const w = new World(mulberry32(1));
+    w.stats.pointDefense = true;
+    w.startWave();
+    w.subs.length = 0;
+    w.shots.push({
+      id: 719,
+      ptype: 'shot',
+      x: w.player.x + 40,
+      y: w.player.y,
+      vx: 0,
+      vy: 0,
+      age: 0,
+      life: 4,
+      damage: 10,
+    });
+
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.shots.some(p => p.id === 719)).toBe(true);
+
+    w.shots.push({
+      id: 718,
+      ptype: 'shot',
+      x: w.player.x + 30,
+      y: w.player.y,
+      vx: 0,
+      vy: 0,
+      age: 0,
+      life: 4,
+      damage: 10,
+    });
+    w.update(1 / 60, { move: { x: 0, y: 0 }, drop: false, fire: false, missile: false });
+
+    expect(w.shots.some(p => p.id === 718)).toBe(false);
+  });
+
   it('autocannon bullets can shoot down enemy SAM rockets', () => {
     const w = new World(mulberry32(1));
     w.startWave();
