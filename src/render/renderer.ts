@@ -998,10 +998,19 @@ export class Renderer {
 
   private menu(): void {
     this.overlay();
-    this.text('SEA BOMBER', VIEW_W / 2, 76, 24, '#ffd866', true);
-    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 101, 8, '#9fd8ff', true);
-    this.text('WASD/arrows move · SPACE drop · aim with mouse · click/F fire', VIEW_W / 2, 126, 8, '#e8f2ff', true);
-    this.text('touch/gamepad supported · ENTER / A / tap outside settings to start', VIEW_W / 2, 140, 8, '#e8f2ff', true);
+    this.text('SEA BOMBER', VIEW_W / 2, 60, 24, '#ffd866', true);
+    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 85, 8, '#9fd8ff', true);
+
+    // How to Play section
+    this.text('HOW TO PLAY', VIEW_W / 2, 115, 14, '#ffd866', true);
+    this.text('MOVE: WASD / arrows / left stick', VIEW_W / 2, 135, 9, '#e8f2ff', true);
+    this.text('AIM: mouse / right stick', VIEW_W / 2, 148, 9, '#e8f2ff', true);
+    this.text('DROP: SPACE / right button / A button', VIEW_W / 2, 161, 9, '#e8f2ff', true);
+    this.text('MISSILES: E / left button / X button', VIEW_W / 2, 174, 9, '#e8f2ff', true);
+    this.text('FIRE: click / F / right trigger', VIEW_W / 2, 187, 9, '#e8f2ff', true);
+
+    this.text('TAP or press ENTER to start', VIEW_W / 2, 215, 10, '#9fd8ff', true);
+    this.text('M: mute · C: credits · [ ]: music vol · - =: sfx vol', VIEW_W / 2, 232, 8, '#9fd8ff', true);
   }
 
   results(view: PostWaveView, layout: UpgradeLayout): void {
