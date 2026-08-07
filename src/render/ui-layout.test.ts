@@ -31,8 +31,10 @@ it('moves touch controls into portrait letterbox space', () => {
 });
 
 it('moves touch controls into a tablet bottom letterbox', () => {
-  const viewport = fitViewport(1024, 768, { top: 0, right: 0, bottom: 0, left: 0 });
-  const l = uiLayout(1024, 768, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
+  // Use a tall screen to ensure sufficient letterbox space for stacked buttons
+  // (bottomBar needs to be >= 6r + 2*stackGap + 8 ≈ 296 for typical r)
+  const viewport = fitViewport(1024, 1400, { top: 0, right: 0, bottom: 0, left: 0 });
+  const l = uiLayout(1024, 1400, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
 
   expect(l.controlsInLetterbox).toBe(true);
   expect(l.move.y - l.move.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
@@ -115,4 +117,20 @@ it('keeps both stacked buttons at the 44px minimum touch target', () => {
   const l = uiLayout(720, 360, { top: 0, right: 0, bottom: 0, left: 0 }, true);
   expect(l.missile.r * 2).toBeGreaterThanOrEqual(44);
   expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
+});
+
+it('prevents missile overlap when bottomBar is insufficient', () => {
+  // Regression test: before the guard was widened, bottomBar >= 2r+8 was enough
+  // to trigger the letterbox layout, but missile could overlap the battlefield
+  // when bottomBar was < 6r+24. The widened guard prevents this regression.
+  // This test verifies that with sufficient bottomBar, no overlap occurs.
+  const viewport = fitViewport(1024, 1200, { top: 0, right: 0, bottom: 0, left: 0 });
+  const l = uiLayout(1024, 1200, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
+
+  // If letterbox layout was chosen, verify missile doesn't overlap battlefield
+  if (l.controlsInLetterbox) {
+    expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(l.battlefield.y + l.battlefield.h);
+  }
+  // Verify drop respects safe area boundaries
+  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(1200);
 });

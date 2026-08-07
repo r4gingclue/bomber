@@ -66,14 +66,14 @@ export function uiLayout(
   const leftBar = battlefield.x - i.left;
   const rightBar = safeRight - (battlefield.x + battlefield.w);
   const stackGap = 12;
-  if (touch && bottomBar >= r * 2 + 8) {
+  if (touch && bottomBar >= r * 6 + stackGap * 2 + 8) {
     const y = battlefield.y + battlefield.h + bottomBar / 2;
     move = { x: i.left + r + 16, y, r };
     drop = { x: safeRight - r - 16, y, r };
     missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlsInLetterbox = true;
     controlOpacity = 0.66;
-  } else if (touch && topBar >= r * 2 + 8) {
+  } else if (touch && topBar >= r * 6 + stackGap * 2 + 8) {
     const y = i.top + topBar / 2;
     move = { x: i.left + r + 16, y, r };
     drop = { x: safeRight - r - 16, y, r };
