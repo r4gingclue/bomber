@@ -99,7 +99,12 @@ function resize(): void {
   });
   uiCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   screenLayout = uiLayout(innerWidth, innerHeight, insets, true, viewport);
-  input?.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
+  input?.setTouchControls({
+    move: screenLayout.move,
+    missile: screenLayout.missile,
+    drop: screenLayout.drop,
+    zoneSplitX: screenLayout.zoneSplitX,
+  });
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', resize);
@@ -242,7 +247,12 @@ async function boot(): Promise<void> {
     audio.handle('ui-confirm');
   }
 
-  activeInput.setTouchControls({ move: screenLayout.move, fire: screenLayout.fire, drop: screenLayout.drop });
+  activeInput.setTouchControls({
+    move: screenLayout.move,
+    missile: screenLayout.missile,
+    drop: screenLayout.drop,
+    zoneSplitX: screenLayout.zoneSplitX,
+  });
   activeInput.attach(uiCanvas);
   activeInput.onGesture = () => {
     void audio.resume().then(() => audio.loadMusic());
@@ -378,6 +388,7 @@ async function boot(): Promise<void> {
       const m = activeInput.aimCanvasPoint();
       if (m) intent.aim = { x: m.x + world.camX, y: m.y };
     }
+    renderer.setTouchVisuals(activeInput.touchVisuals());
     world.update(dt, intent);
     for (const ev of world.events) audio.handle(ev);
     world.events.length = 0;
