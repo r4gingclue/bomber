@@ -7,17 +7,20 @@ export interface AudioSettingsLayout {
   sfx: UiRect;
   mute: UiRect;
   credits: UiRect;
+  toggle: UiRect;
+  start: UiRect;
 }
 
 export type AudioSettingsHit =
   | { control: 'music' | 'sfx'; value: number }
-  | { control: 'mute' | 'credits' };
+  | { control: 'mute' | 'credits' | 'toggle' | 'start' };
 
 export interface AudioSettingsView {
   music: number;
   sfx: number;
   muted: boolean;
   creditsOpen: boolean;
+  settingsCollapsed: boolean;
 }
 
 export const AUDIO_CREDIT_LINES = [
@@ -37,12 +40,19 @@ export function audioSettingsLayout(w: number, h: number, insets: Insets): Audio
   const labelW = 72;
   const trackX = x + 16 + labelW;
   const trackW = panelW - labelW - 32;
+  const btnW = (panelW - 40) / 2;
+  // Bottom row: toggle (left) and start (right) - always visible
+  const bottomY = y + panelH - 52;
+  // Second row from bottom: mute (left) and credits (right) - hidden when collapsed
+  const secondRowY = y + panelH - 100;
   return {
     panel: { x, y, w: panelW, h: panelH },
     music: { x: trackX, y: y + 20, w: trackW, h: 36 },
     sfx: { x: trackX, y: y + 68, w: trackW, h: 36 },
-    mute: { x: x + 16, y: y + panelH - 52, w: (panelW - 40) / 2, h: 40 },
-    credits: { x: x + 24 + (panelW - 40) / 2, y: y + panelH - 52, w: (panelW - 40) / 2, h: 40 },
+    mute: { x: x + 16, y: secondRowY, w: btnW, h: 40 },
+    credits: { x: x + 24 + btnW, y: secondRowY, w: btnW, h: 40 },
+    toggle: { x: x + 16, y: bottomY, w: btnW, h: 40 },
+    start: { x: x + 24 + btnW, y: bottomY, w: btnW, h: 40 },
   };
 }
 
@@ -53,6 +63,8 @@ export function sliderValue(track: UiRect, x: number): number {
 export function audioSettingsHit(layout: AudioSettingsLayout, point: { x: number; y: number }): AudioSettingsHit | null {
   if (contains(layout.music, point)) return { control: 'music', value: sliderValue(layout.music, point.x) };
   if (contains(layout.sfx, point)) return { control: 'sfx', value: sliderValue(layout.sfx, point.x) };
+  if (contains(layout.toggle, point)) return { control: 'toggle' };
+  if (contains(layout.start, point)) return { control: 'start' };
   if (contains(layout.mute, point)) return { control: 'mute' };
   if (contains(layout.credits, point)) return { control: 'credits' };
   return null;

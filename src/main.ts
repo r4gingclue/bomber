@@ -180,6 +180,7 @@ async function boot(): Promise<void> {
   let harnessRestage = 0;
   let musicSampleT = 0;
   let creditsOpen = false;
+  let settingsCollapsed = false;
   const upgradeBranches: readonly UpgradeBranch[] = ['weapons', 'ordnance', 'defense', 'flight'];
 
   const nodesForBranch = (branchIndex = upgradeFocus.branch) =>
@@ -270,7 +271,8 @@ async function boot(): Promise<void> {
       else if (hit?.control === 'sfx') audio.setSfxVolume(hit.value);
       else if (hit?.control === 'mute') audio.toggleMute();
       else if (hit?.control === 'credits') creditsOpen = !creditsOpen;
-      else startRun();
+      else if (hit?.control === 'toggle') settingsCollapsed = !settingsCollapsed;
+      else if (hit?.control === 'start') startRun();
       return true;
     }
     else if (state.phase === 'gameover') {
@@ -511,6 +513,7 @@ async function boot(): Promise<void> {
           sfx: audio.preferences.sfx,
           muted: audio.muted,
           creditsOpen,
+          settingsCollapsed,
         },
         {
           points: progression.points,

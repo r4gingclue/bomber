@@ -21,11 +21,13 @@ it('maps slider edges to zero and one and clamps outside points', () => {
   expect(sliderValue(track, 350)).toBe(1);
 });
 
-it('distinguishes music, SFX, mute, credits, and outside taps', () => {
+it('distinguishes music, SFX, mute, credits, toggle, start, and outside taps', () => {
   const layout = audioSettingsLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 });
   const center = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
   expect(audioSettingsHit(layout, center(layout.music))).toMatchObject({ control: 'music' });
   expect(audioSettingsHit(layout, center(layout.sfx))).toMatchObject({ control: 'sfx' });
+  expect(audioSettingsHit(layout, center(layout.toggle))).toEqual({ control: 'toggle' });
+  expect(audioSettingsHit(layout, center(layout.start))).toEqual({ control: 'start' });
   expect(audioSettingsHit(layout, center(layout.mute))).toEqual({ control: 'mute' });
   expect(audioSettingsHit(layout, center(layout.credits))).toEqual({ control: 'credits' });
   expect(audioSettingsHit(layout, { x: 0, y: 0 })).toBeNull();

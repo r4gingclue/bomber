@@ -834,7 +834,7 @@ export class Renderer {
       return;
     }
     if (phase === 'menu') {
-      if (audioSettings) this.audioPanel(layout, audioSettings);
+      if (audioSettings) this.audioPanel(layout, audioSettings, audioSettings.settingsCollapsed);
       return;
     }
     if (phase === 'gameover') return;
@@ -842,30 +842,45 @@ export class Renderer {
     if (touchUI && phase === 'playing') this.touchOverlay(layout);
   }
 
-  private audioPanel(layout: UiLayout, view: AudioSettingsView): void {
+  private audioPanel(layout: UiLayout, view: AudioSettingsView, collapsed: boolean): void {
     const ctx = this.uiCtx;
     const panel = layout.audio.panel;
     ctx.fillStyle = 'rgba(4, 10, 20, 0.9)';
     ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
     ctx.strokeStyle = '#9fd8ff';
     ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-    this.drawAudioSlider('MUSIC', layout.audio.music, view.music);
-    this.drawAudioSlider('SFX', layout.audio.sfx, view.sfx);
-    for (const [rect, label, active] of [
-      [layout.audio.mute, view.muted ? 'UNMUTE [M]' : 'MUTE [M]', view.muted],
-      [layout.audio.credits, view.creditsOpen ? 'CLOSE CREDITS' : 'CREDITS [C]', view.creditsOpen],
-    ] as const) {
-      ctx.fillStyle = active ? '#765b25' : '#12233d';
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-      ctx.strokeStyle = '#9fd8ff';
-      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-      this.text(label, rect.x + rect.w / 2, rect.y + 25, 13, '#e8f2ff', true, ctx);
+
+    if (!collapsed) {
+      this.drawAudioSlider('MUSIC', layout.audio.music, view.music);
+      this.drawAudioSlider('SFX', layout.audio.sfx, view.sfx);
+      for (const [rect, label, active] of [
+        [layout.audio.mute, view.muted ? 'UNMUTE [M]' : 'MUTE [M]', view.muted],
+        [layout.audio.credits, view.creditsOpen ? 'CLOSE CREDITS' : 'CREDITS [C]', view.creditsOpen],
+      ] as const) {
+        ctx.fillStyle = active ? '#765b25' : '#12233d';
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.strokeStyle = '#9fd8ff';
+        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+        this.text(label, rect.x + rect.w / 2, rect.y + 25, 13, '#e8f2ff', true, ctx);
+      }
+      if (view.creditsOpen) {
+        ctx.fillStyle = 'rgba(4, 10, 20, 0.97)';
+        ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - 68);
+        AUDIO_CREDIT_LINES.forEach((line, index) =>
+          this.text(line, panel.x + panel.w / 2, panel.y + 30 + index * 22, 12, '#e8f2ff', true, ctx));
+      }
     }
-    if (view.creditsOpen) {
-      ctx.fillStyle = 'rgba(4, 10, 20, 0.97)';
-      ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - 68);
-      AUDIO_CREDIT_LINES.forEach((line, index) =>
-        this.text(line, panel.x + panel.w / 2, panel.y + 30 + index * 22, 12, '#e8f2ff', true, ctx));
+
+    // Bottom row: toggle and start buttons always visible
+    for (const [rect, label, primary] of [
+      [layout.audio.toggle, collapsed ? 'SETTINGS ▸' : 'SETTINGS ▾', false],
+      [layout.audio.start, 'START GAME', true],
+    ] as const) {
+      ctx.fillStyle = primary ? '#765b25' : '#12233d';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = primary ? '#ffd866' : '#9fd8ff';
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      this.text(label, rect.x + rect.w / 2, rect.y + 25, 13, primary ? '#fff2c6' : '#e8f2ff', true, ctx);
     }
   }
 
