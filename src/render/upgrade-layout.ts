@@ -110,14 +110,14 @@ export function upgradeLayout(
     h: buttonH,
   };
   const resultsContinueButton = { ...continueButton };
-  const footerFontSize = panel.h < 430 || panel.w < 500 ? 10 : 13;
-  const footerBaseline = continueButton.y - (panel.h < 430 ? 5 : 10);
+  const footerFontSize = panel.h < 430 || panel.w < 500 ? 11 : 13;
+  const footerBaseline = continueButton.y - (panel.h < 430 ? 6 : 10);
   const footer: UpgradeFooterLayout = {
     fontSize: footerFontSize,
     baseline: footerBaseline,
     inkTop: footerBaseline - footerFontSize,
     inkBottom: footerBaseline + Math.ceil(footerFontSize * 0.25),
-    detailGap: 2,
+    detailGap: 3,
   };
   const nodes = allNodes.filter(node => node.branch === branch);
   const columns = portrait ? 1 : 2;
@@ -153,7 +153,7 @@ export function upgradeLayout(
     : contentW;
   const nodeAreaH = Math.max(1, nodeBottom - nodeTop);
   const nodeH = Math.max(1, Math.min(
-    compact ? 54 : portrait ? 64 : 108,
+    compact ? 64 : portrait ? 72 : 108,
     (nodeAreaH - nodeGap * (rows - 1)) / rows,
   ));
   const nodeW = Math.max(1, (nodeAreaW - nodeGap * (columns - 1)) / columns);

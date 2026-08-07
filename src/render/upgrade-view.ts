@@ -136,8 +136,9 @@ export function buildUpgradeNodeRenderPlan(
   const cardLines: UpgradeTextLinePlan[] = [];
 
   if (usesDetail) {
-    const nameSize = Math.max(6, Math.min(10, Math.floor((cardRect.h - 5) / 2)));
-    const statusSize = Math.max(6, Math.min(8, nameSize - 1));
+    // Compact/detail mode: name + cost on top line, short status bottom
+    const nameSize = Math.max(7, Math.min(11, Math.floor((cardRect.h - 5) / 2)));
+    const statusSize = Math.max(7, Math.min(9, nameSize - 1));
     cardLines.push(
       {
         text: node.name,
@@ -165,6 +166,7 @@ export function buildUpgradeNodeRenderPlan(
       },
     );
   } else {
+    // Desktop/full mode: show name, cost, description, status
     const nameSize = 14;
     const bodySize = 11;
     const statusSize = 10;
