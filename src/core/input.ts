@@ -103,20 +103,20 @@ export class Input {
         return;
       }
       const controls = this.controls;
-      if (inCircle(e.clientX, e.clientY, controls.missile)) {
-        this.missileQueued = true;
-        return;
-      }
-      if (inCircle(e.clientX, e.clientY, controls.drop)) {
-        this.dropQueued = true;
-        return;
-      }
       if (e.clientX < controls.zoneSplitX) {
         // Left zone: movement joystick
         if (this.steerPointer) return;
         this.steerPointer = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 };
       } else {
-        // Right zone: aim joystick (absolute position within circle)
+        // Right zone: check buttons first, then aim joystick
+        if (inCircle(e.clientX, e.clientY, controls.missile)) {
+          this.missileQueued = true;
+          return;
+        }
+        if (inCircle(e.clientX, e.clientY, controls.drop)) {
+          this.dropQueued = true;
+          return;
+        }
         if (this.aimPointer) return;
         this.aimPointer = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 };
       }
