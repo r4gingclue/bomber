@@ -861,13 +861,13 @@ export class Renderer {
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         ctx.strokeStyle = '#9fd8ff';
         ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-        this.text(label, rect.x + rect.w / 2, rect.y + 25, 13, '#e8f2ff', true, ctx);
+        this.text(label, rect.x + rect.w / 2, rect.y + 24, 12, '#e8f2ff', true, ctx);
       }
       if (view.creditsOpen) {
         ctx.fillStyle = 'rgba(4, 10, 20, 0.97)';
-        ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - 68);
+        ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - 88);
         AUDIO_CREDIT_LINES.forEach((line, index) =>
-          this.text(line, panel.x + panel.w / 2, panel.y + 30 + index * 22, 12, '#e8f2ff', true, ctx));
+          this.text(line, panel.x + panel.w / 2, panel.y + 28 + index * 20, 11, '#e8f2ff', true, ctx));
       }
     }
 
@@ -880,13 +880,13 @@ export class Renderer {
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.strokeStyle = primary ? '#ffd866' : '#9fd8ff';
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-      this.text(label, rect.x + rect.w / 2, rect.y + 25, 13, primary ? '#fff2c6' : '#e8f2ff', true, ctx);
+      this.text(label, rect.x + rect.w / 2, rect.y + 24, 12, primary ? '#fff2c6' : '#e8f2ff', true, ctx);
     }
   }
 
   private drawAudioSlider(label: string, track: { x: number; y: number; w: number; h: number }, value: number): void {
     const ctx = this.uiCtx;
-    this.text(label, track.x - 36, track.y + 23, 13, '#e8f2ff', true, ctx);
+    this.text(label, track.x - 40, track.y + 20, 11, '#e8f2ff', true, ctx);
     const y = track.y + track.h / 2 - 4;
     ctx.fillStyle = '#26364d';
     ctx.fillRect(track.x, y, track.w, 8);
@@ -1013,19 +1013,19 @@ export class Renderer {
 
   private menu(): void {
     this.overlay();
-    this.text('SEA BOMBER', VIEW_W / 2, 60, 24, '#ffd866', true);
-    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 85, 8, '#9fd8ff', true);
+    // Title
+    this.text('SEA BOMBER', VIEW_W / 2, 50, 24, '#ffd866', true);
+    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 72, 8, '#9fd8ff', true);
 
-    // How to Play section
-    this.text('HOW TO PLAY', VIEW_W / 2, 115, 14, '#ffd866', true);
-    this.text('MOVE: WASD / arrows / left stick', VIEW_W / 2, 135, 9, '#e8f2ff', true);
-    this.text('AIM: mouse / right stick', VIEW_W / 2, 148, 9, '#e8f2ff', true);
-    this.text('DROP: SPACE / right button / A button', VIEW_W / 2, 161, 9, '#e8f2ff', true);
-    this.text('MISSILES: E / left button / X button', VIEW_W / 2, 174, 9, '#e8f2ff', true);
-    this.text('FIRE: click / F / right trigger', VIEW_W / 2, 187, 9, '#e8f2ff', true);
-
-    this.text('TAP or press ENTER to start', VIEW_W / 2, 215, 10, '#9fd8ff', true);
-    this.text('M: mute · C: credits · [ ]: music vol · - =: sfx vol', VIEW_W / 2, 232, 8, '#9fd8ff', true);
+    // How to Play section - compact, centered
+    this.text('HOW TO PLAY', VIEW_W / 2, 95, 12, '#ffd866', true);
+    const instrY = 112;
+    const instrGap = 14;
+    this.text('MOVE: WASD / arrows / left stick', VIEW_W / 2, instrY, 8, '#e8f2ff', true);
+    this.text('AIM: mouse / right stick', VIEW_W / 2, instrY + instrGap, 8, '#e8f2ff', true);
+    this.text('DROP: SPACE / right button / A button', VIEW_W / 2, instrY + instrGap * 2, 8, '#e8f2ff', true);
+    this.text('MISSILES: E / left button / X button', VIEW_W / 2, instrY + instrGap * 3, 8, '#e8f2ff', true);
+    this.text('FIRE: click / F / right trigger', VIEW_W / 2, instrY + instrGap * 4, 8, '#e8f2ff', true);
   }
 
   results(view: PostWaveView, layout: UpgradeLayout): void {
