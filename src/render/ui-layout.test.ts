@@ -16,7 +16,7 @@ it('keeps phone touch controls inside safe areas', () => {
   const viewport = fitViewport(960, 540, insets);
   const l = uiLayout(960, 540, insets, true, viewport);
   expect(l.move.x - l.move.r).toBeGreaterThanOrEqual(24);
-  expect(l.fire.x + l.fire.r).toBeLessThanOrEqual(936);
+  expect(l.missile.x + l.missile.r).toBeLessThanOrEqual(936);
   expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(506);
 });
 
@@ -26,7 +26,7 @@ it('moves touch controls into portrait letterbox space', () => {
 
   expect(l.controlsInLetterbox).toBe(true);
   expect(l.move.y - l.move.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
-  expect(l.fire.y - l.fire.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+  expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
   expect(l.drop.y - l.drop.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
 });
 
@@ -45,11 +45,11 @@ it('uses compact translucent edge controls when landscape has no usable letterbo
 
   expect(l.controlsInLetterbox).toBe(false);
   expect(l.move.r).toBe(22);
-  expect(l.fire.r).toBe(22);
+  expect(l.missile.r).toBe(22);
   expect(l.drop.r).toBe(22);
   expect(l.controlOpacity).toBeLessThanOrEqual(0.4);
   expect(l.gameplaySafe.w).toBeGreaterThan(viewport.width * 0.5);
-  for (const control of [l.move, l.fire, l.drop]) {
+  for (const control of [l.move, l.missile, l.drop]) {
     expect(circleIntersectsRect(control, l.gameplaySafe)).toBe(false);
   }
 });
@@ -69,7 +69,7 @@ it.each([
   const l = uiLayout(w, h, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
 
   expect(l.move.r * 2).toBeGreaterThanOrEqual(44);
-  expect(l.fire.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.missile.r * 2).toBeGreaterThanOrEqual(44);
   expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
   expect(l.hud.fontSize).toBeGreaterThanOrEqual(14);
   expect(l.hud.x + l.hud.w).toBeLessThanOrEqual(w);
@@ -87,4 +87,32 @@ it.each([
       expect(upgradeNodeWrapWidth(rect)).toBeLessThan(rect.w);
     }
   }
+});
+
+it('stacks the missile button directly above the drop button', () => {
+  const l = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  expect(l.missile.x).toBeCloseTo(l.drop.x, 5);
+  expect(l.missile.y).toBeLessThan(l.drop.y);
+  // no overlap between the two stacked buttons
+  expect(l.drop.y - l.missile.y).toBeGreaterThanOrEqual(l.missile.r + l.drop.r);
+});
+
+it('anchors the button stack to the bottom-right of the safe area', () => {
+  const insets = { top: 0, right: 20, bottom: 30, left: 0 };
+  const l = uiLayout(960, 540, insets, true);
+  expect(l.drop.x + l.drop.r).toBeLessThanOrEqual(960 - insets.right);
+  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(540 - insets.bottom);
+});
+
+it('splits the steering and aiming zones at the horizontal midpoint', () => {
+  const l = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  expect(l.zoneSplitX).toBeCloseTo(480, 5);
+  const inset = uiLayout(960, 540, { top: 0, right: 40, bottom: 0, left: 60 }, true);
+  expect(inset.zoneSplitX).toBeCloseTo(60 + (960 - 60 - 40) / 2, 5);
+});
+
+it('keeps both stacked buttons at the 44px minimum touch target', () => {
+  const l = uiLayout(720, 360, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  expect(l.missile.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
 });
