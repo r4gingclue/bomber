@@ -13,7 +13,7 @@ it.each([
 
   expect(canvas).toEqual({ cssWidth: w, cssHeight: h, backingWidth: w * 2, backingHeight: h * 2 });
   expect(layout.move.x).toBeLessThanOrEqual(canvas.cssWidth);
-  expect(layout.fire.x + layout.fire.r).toBeLessThanOrEqual(canvas.cssWidth);
+  expect(layout.missile.x + layout.missile.r).toBeLessThanOrEqual(canvas.cssWidth);
   expect(layout.drop.y + layout.drop.r).toBeLessThanOrEqual(canvas.cssHeight);
 });
 
