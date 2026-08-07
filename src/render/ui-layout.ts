@@ -74,16 +74,16 @@ export function uiLayout(
   // (6r + 2*gap). We use the right-side requirement for the letterbox check.
   if (touch && bottomBar >= r * 6 + stackGap * 2 + 8) {
     const y = battlefield.y + battlefield.h + bottomBar / 2;
-    move = { x: i.left + r + 16, y, r };
-    aim = { x: safeRight - r - 16, y, r };
+    move = { x: i.left + r + 24, y, r };
+    aim = { x: safeRight - r - 24, y, r };
     drop = { x: aim.x, y: aim.y - r * 2 - stackGap, r };
     missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlsInLetterbox = true;
     controlOpacity = 0.66;
   } else if (touch && topBar >= r * 6 + stackGap * 2 + 8) {
     const y = i.top + topBar / 2;
-    move = { x: i.left + r + 16, y, r };
-    aim = { x: safeRight - r - 16, y, r };
+    move = { x: i.left + r + 24, y, r };
+    aim = { x: safeRight - r - 24, y, r };
     drop = { x: aim.x, y: aim.y - r * 2 - stackGap, r };
     missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlsInLetterbox = true;
@@ -91,12 +91,12 @@ export function uiLayout(
   } else if (touch && leftBar >= r * 2 + 8 && rightBar >= r * 6 + stackGap * 2 + 8) {
     move = {
       x: i.left + leftBar / 2,
-      y: Math.min(safeBottom - r - 8, battlefield.y + battlefield.h * 0.72),
+      y: Math.min(safeBottom - r - 16, battlefield.y + battlefield.h * 0.72),
       r,
     };
     aim = {
       x: battlefield.x + battlefield.w + rightBar / 2,
-      y: Math.min(safeBottom - r - 8, battlefield.y + battlefield.h * 0.72),
+      y: Math.min(safeBottom - r - 16, battlefield.y + battlefield.h * 0.72),
       r,
     };
     drop = { x: aim.x, y: aim.y - r * 2 - stackGap, r };
@@ -105,7 +105,7 @@ export function uiLayout(
     controlOpacity = 0.66;
   } else if (touch) {
     r = 22;
-    const edge = 8;
+    const edge = 16;
     move = {
       x: battlefield.x + r + edge,
       y: battlefield.y + battlefield.h - r - edge,
