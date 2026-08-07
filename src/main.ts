@@ -388,7 +388,6 @@ async function boot(): Promise<void> {
       const m = activeInput.aimCanvasPoint();
       if (m) intent.aim = { x: m.x + world.camX, y: m.y };
     }
-    renderer.setTouchVisuals(activeInput.touchVisuals());
     world.update(dt, intent);
     for (const ev of world.events) audio.handle(ev);
     world.events.length = 0;
@@ -495,6 +494,7 @@ async function boot(): Promise<void> {
       const overlayLayout = state.phase === 'results' || state.phase === 'upgrade'
         ? progressionLayout()
         : undefined;
+      renderer.setTouchVisuals(activeInput.touchVisuals());
       renderer.draw(
         world,
         state.phase,

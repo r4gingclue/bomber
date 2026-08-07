@@ -66,6 +66,11 @@ export function uiLayout(
   const leftBar = battlefield.x - i.left;
   const rightBar = safeRight - (battlefield.x + battlefield.w);
   const stackGap = 12;
+  // NOTE: this guard intentionally excludes some 4:3 tablet sizes (e.g. iPad
+  // 1024x768 landscape) from the letterbox layout in favor of the compact
+  // overlay below. Two stacked 44px buttons need ~100px of bar, and an iPad's
+  // ~96px bar can't fit that without shrinking below the 44px touch-target
+  // floor, so the compact overlay is the correct fallback here.
   if (touch && bottomBar >= r * 6 + stackGap * 2 + 8) {
     const y = battlefield.y + battlefield.h + bottomBar / 2;
     move = { x: i.left + r + 16, y, r };

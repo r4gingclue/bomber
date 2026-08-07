@@ -46,8 +46,6 @@ export function touchButtons(): Pick<TouchControls, 'missile' | 'drop'> {
 const inCircle = (cx: number, cy: number, b: { x: number; y: number; r: number }) =>
   (cx - b.x) ** 2 + (cy - b.y) ** 2 <= b.r ** 2;
 
-type PointerRole = 'steer' | 'aim' | 'missile' | 'drop';
-
 export class Input {
   private keys = new Set<string>();
   private dropQueued = false;
@@ -56,7 +54,6 @@ export class Input {
   private upgradeActionQueued: UpgradeAction | null = null;
   private mouseFire = false;
   private controls: TouchControls = touchControls();
-  private pointerRoles = new Map<number, PointerRole>();
   private steerPointer: { id: number; ox: number; oy: number; dx: number; dy: number } | null = null;
   private aimPointer: { id: number; x: number; y: number } | null = null;
   private mouseAim: { x: number; y: number } | null = null;
@@ -105,20 +102,21 @@ export class Input {
       }
       const controls = this.controls;
       if (inCircle(e.clientX, e.clientY, controls.missile)) {
-        this.pointerRoles.set(e.pointerId, 'missile');
         this.missileQueued = true;
         return;
       }
       if (inCircle(e.clientX, e.clientY, controls.drop)) {
-        this.pointerRoles.set(e.pointerId, 'drop');
         this.dropQueued = true;
         return;
       }
       if (e.clientX < controls.zoneSplitX) {
-        this.pointerRoles.set(e.pointerId, 'steer');
+        // First finger in this zone wins the role for its whole lifetime; a second
+        // finger landing in an already-owned zone (palm edge, re-plant before lift)
+        // must not steal ownership and orphan the first finger's control.
+        if (this.steerPointer) return;
         this.steerPointer = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 };
       } else {
-        this.pointerRoles.set(e.pointerId, 'aim');
+        if (this.aimPointer) return;
         this.aimPointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
       }
     });
@@ -140,7 +138,6 @@ export class Input {
       if (e.pointerType === 'mouse') this.mouseFire = false;
       if (this.steerPointer?.id === e.pointerId) this.steerPointer = null;
       if (this.aimPointer?.id === e.pointerId) this.aimPointer = null;
-      this.pointerRoles.delete(e.pointerId);
     };
     el.addEventListener('pointerup', endPointer);
     el.addEventListener('pointercancel', endPointer);
@@ -155,7 +152,6 @@ export class Input {
     this.keys.clear();
     this.discardPhaseQueues();
     this.mouseFire = false;
-    this.pointerRoles.clear();
     this.steerPointer = null;
     this.aimPointer = null;
     this.mouseAim = null;
@@ -168,7 +164,6 @@ export class Input {
     this.missileQueued = false;
     this.confirmQueued = false;
     this.upgradeActionQueued = null;
-    this.pointerRoles.clear();
     this.steerPointer = null;
     this.aimPointer = null;
   }

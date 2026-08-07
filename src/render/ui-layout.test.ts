@@ -119,6 +119,20 @@ it('keeps both stacked buttons at the 44px minimum touch target', () => {
   expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
 });
 
+it('falls back to the compact overlay on 4:3 tablet landscape (iPad 1024x768)', () => {
+  // Intentional, accepted trade-off (see the guard comment in ui-layout.ts):
+  // two stacked 44px buttons need ~100px of bar, and this size's bar is too
+  // short to fit them without breaking the 44px touch-target floor, so it
+  // falls through to the compact overlay instead of the letterbox layout.
+  const l = uiLayout(1024, 768, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+
+  expect(l.controlsInLetterbox).toBe(false);
+  expect(l.controlOpacity).toBeLessThanOrEqual(0.4);
+  expect(l.move.r).toBe(22);
+  expect(l.missile.r).toBe(22);
+  expect(l.drop.r).toBe(22);
+});
+
 it('prevents missile overlap when bottomBar is insufficient', () => {
   // Regression test: before the guard was widened, bottomBar >= 2r+8 was enough
   // to trigger the letterbox layout, but missile could overlap the battlefield

@@ -497,6 +497,37 @@ describe('pointer role locking', () => {
     expect(intent.fire).toBe(false);
     expect(intent.move.x).toBeCloseTo(1, 5);
   });
+
+  it('ignores a same-zone second finger and keeps the first finger steering (first-finger-wins)', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 }); // finger1 claims steer
+    el.emit('pointerdown', { pointerId: 2, clientX: 220, clientY: 510 }); // finger2, same zone: must be ignored
+    el.emit('pointermove', { pointerId: 1, clientX: 240, clientY: 500 });
+    expect(input.poll().move.x).toBeCloseTo(1, 5); // finger1 still owns steering
+
+    el.emit('pointerup', { pointerId: 2, clientX: 220, clientY: 510 }); // finger2 lifts; it never owned anything
+    expect(input.poll().move.x).toBeCloseTo(1, 5); // steer state must be unaffected
+
+    el.emit('pointermove', { pointerId: 1, clientX: 260, clientY: 500 });
+    expect(input.poll().move.x).toBeCloseTo(1, 5); // finger1 continues to steer normally
+
+    el.emit('pointerup', { pointerId: 1, clientX: 260, clientY: 500 });
+    expect(input.poll().move.x).toBe(0); // only the true owner's release clears steering
+  });
+
+  it('ignores a same-zone second finger and keeps the first finger aiming/firing (first-finger-wins)', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 }); // finger2 claims aim
+    el.emit('pointerdown', { pointerId: 3, clientX: 720, clientY: 210 }); // finger3, same zone: must be ignored
+    expect(input.poll().fire).toBe(true);
+    expect(input.aimCanvasPoint()).toEqual({ x: 700, y: 200 }); // unaffected by finger3
+
+    el.emit('pointerup', { pointerId: 3, clientX: 720, clientY: 210 }); // finger3 lifts; it never owned anything
+    expect(input.poll().fire).toBe(true); // fire state must be unaffected: finger2 still held
+
+    el.emit('pointerup', { pointerId: 2, clientX: 700, clientY: 200 }); // the true owner releases
+    expect(input.poll().fire).toBe(false);
+  });
 });
 
 describe('touch teardown', () => {
