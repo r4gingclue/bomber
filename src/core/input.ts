@@ -15,29 +15,38 @@ export interface Intent {
 
 export interface TouchControls {
   move: UiCircle;
-  fire: UiCircle;
+  missile: UiCircle;
   drop: UiCircle;
+  /** client-x boundary: touches left of this steer, right of this aim */
+  zoneSplitX: number;
 }
 
 /** CSS-pixel touch controls shared with the screen-space renderer. */
 export function touchControls(): TouchControls {
   const layout = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, true);
-  return { move: layout.move, fire: layout.fire, drop: layout.drop };
+  return {
+    move: layout.move,
+    missile: layout.missile,
+    drop: layout.drop,
+    zoneSplitX: layout.zoneSplitX,
+  };
 }
 
 /** Simulation-space button geometry retained for callers that use canvas coordinates. */
-export function touchButtons(): Pick<TouchControls, 'fire' | 'drop'> {
+export function touchButtons(): Pick<TouchControls, 'missile' | 'drop'> {
   const controls = touchControls();
   const toSimulation = ({ x, y, r }: UiCircle): UiCircle =>
     ({ x: x / RENDER_SCALE, y: y / RENDER_SCALE, r: r / RENDER_SCALE });
   return {
-    fire: toSimulation(controls.fire),
+    missile: toSimulation(controls.missile),
     drop: toSimulation(controls.drop),
   };
 }
 
 const inCircle = (cx: number, cy: number, b: { x: number; y: number; r: number }) =>
   (cx - b.x) ** 2 + (cy - b.y) ** 2 <= b.r ** 2;
+
+type PointerRole = 'steer' | 'aim' | 'missile' | 'drop';
 
 export class Input {
   private keys = new Set<string>();
@@ -46,11 +55,10 @@ export class Input {
   private confirmQueued = false;
   private upgradeActionQueued: UpgradeAction | null = null;
   private mouseFire = false;
-  private touchFireQueued = false;
   private controls: TouchControls = touchControls();
-  private firePointers = new Map<number, { startedAt: number; missileFired: boolean }>();
-  private stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
-  private aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
+  private pointerRoles = new Map<number, PointerRole>();
+  private steerPointer: { id: number; ox: number; oy: number; dx: number; dy: number } | null = null;
+  private aimPointer: { id: number; x: number; y: number } | null = null;
   private mouseAim: { x: number; y: number } | null = null;
   private gamepadAim: { dx: number; dy: number } | null = null;
   /** true once any touch input has been seen (renderer shows touch UI) */
@@ -96,16 +104,22 @@ export class Input {
         return;
       }
       const controls = this.controls;
-      if (inCircle(e.clientX, e.clientY, controls.move)) {
-        this.stick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
+      if (inCircle(e.clientX, e.clientY, controls.missile)) {
+        this.pointerRoles.set(e.pointerId, 'missile');
+        this.missileQueued = true;
         return;
       }
-      if (inCircle(e.clientX, e.clientY, controls.fire)) {
-        this.firePointers.set(e.pointerId, { startedAt: performance.now(), missileFired: false });
-      } else if (inCircle(e.clientX, e.clientY, controls.drop)) {
+      if (inCircle(e.clientX, e.clientY, controls.drop)) {
+        this.pointerRoles.set(e.pointerId, 'drop');
         this.dropQueued = true;
+        return;
+      }
+      if (e.clientX < controls.zoneSplitX) {
+        this.pointerRoles.set(e.pointerId, 'steer');
+        this.steerPointer = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 };
       } else {
-        this.aimStick = { active: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
+        this.pointerRoles.set(e.pointerId, 'aim');
+        this.aimPointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
       }
     });
     el.addEventListener('pointermove', e => {
@@ -113,29 +127,23 @@ export class Input {
         this.mouseAim = this.toCanvas(e.clientX, e.clientY);
         return;
       }
-      if (this.stick.active && e.pointerId === this.stick.id) {
-        this.stick.dx = e.clientX - this.stick.sx;
-        this.stick.dy = e.clientY - this.stick.sy;
+      if (this.steerPointer && e.pointerId === this.steerPointer.id) {
+        this.steerPointer.dx = e.clientX - this.steerPointer.ox;
+        this.steerPointer.dy = e.clientY - this.steerPointer.oy;
       }
-      if (this.aimStick.active && e.pointerId === this.aimStick.id) {
-        this.aimStick.dx = e.clientX - this.aimStick.sx;
-        this.aimStick.dy = e.clientY - this.aimStick.sy;
+      if (this.aimPointer && e.pointerId === this.aimPointer.id) {
+        this.aimPointer.x = e.clientX;
+        this.aimPointer.y = e.clientY;
       }
     });
-    const release = (e: PointerEvent) => {
+    const endPointer = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') this.mouseFire = false;
-      if (this.stick.active && e.pointerId === this.stick.id) this.stick.active = false;
-      if (this.aimStick.active && e.pointerId === this.aimStick.id) this.aimStick.active = false;
-      this.releaseFirePointer(e.pointerId, false);
+      if (this.steerPointer?.id === e.pointerId) this.steerPointer = null;
+      if (this.aimPointer?.id === e.pointerId) this.aimPointer = null;
+      this.pointerRoles.delete(e.pointerId);
     };
-    const cancel = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse') this.mouseFire = false;
-      if (this.stick.active && e.pointerId === this.stick.id) this.stick.active = false;
-      if (this.aimStick.active && e.pointerId === this.aimStick.id) this.aimStick.active = false;
-      this.releaseFirePointer(e.pointerId, true);
-    };
-    el.addEventListener('pointerup', release);
-    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('pointerup', endPointer);
+    el.addEventListener('pointercancel', endPointer);
   }
 
   setTouchControls(controls: TouchControls): void {
@@ -147,9 +155,9 @@ export class Input {
     this.keys.clear();
     this.discardPhaseQueues();
     this.mouseFire = false;
-    this.firePointers.clear();
-    this.stick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
-    this.aimStick = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
+    this.pointerRoles.clear();
+    this.steerPointer = null;
+    this.aimPointer = null;
     this.mouseAim = null;
   }
 
@@ -160,7 +168,6 @@ export class Input {
     this.missileQueued = false;
     this.confirmQueued = false;
     this.upgradeActionQueued = null;
-    this.touchFireQueued = false;
   }
 
   poll(): Intent {
@@ -176,9 +183,9 @@ export class Input {
     if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) x += 1;
     if (this.keys.has('ArrowUp') || this.keys.has('KeyW')) y -= 1;
     if (this.keys.has('ArrowDown') || this.keys.has('KeyS')) y += 1;
-    if (this.stick.active) {
-      const nx = Math.max(-1, Math.min(1, this.stick.dx / 40));
-      const ny = Math.max(-1, Math.min(1, this.stick.dy / 40));
+    if (this.steerPointer) {
+      const nx = Math.max(-1, Math.min(1, this.steerPointer.dx / 40));
+      const ny = Math.max(-1, Math.min(1, this.steerPointer.dy / 40));
       if (Math.abs(nx) > 0.15) x = nx;
       if (Math.abs(ny) > 0.15) y = ny;
     }
@@ -186,54 +193,47 @@ export class Input {
     if (gamepad.move.y !== 0) y = gamepad.move.y;
     const drop = this.dropQueued || gamepad.dropPressed;
     this.dropQueued = false;
-    this.queueHeldTouchMissiles();
-    const touchFire = this.touchFireQueued;
-    this.touchFireQueued = false;
     const missile = this.missileQueued || gamepad.missilePressed;
     this.missileQueued = false;
     return {
       move: { x, y },
       drop,
-      fire: this.keys.has('KeyF') || this.mouseFire || touchFire || gamepad.fire,
+      fire: this.keys.has('KeyF') || this.mouseFire || this.aimPointer !== null || gamepad.fire,
       missile,
       sfxUp: gamepad.sfxPressed,
       aim: null,
     };
   }
 
-  private queueHeldTouchMissiles(): void {
-    const now = performance.now();
-    for (const fire of this.firePointers.values()) {
-      if (!fire.missileFired && now - fire.startedAt >= 350) {
-        this.missileQueued = true;
-        fire.missileFired = true;
-      }
-    }
-  }
-
-  private releaseFirePointer(pointerId: number, cancelled: boolean): void {
-    const fire = this.firePointers.get(pointerId);
-    if (!fire) return;
-    if (!cancelled) {
-      if (fire.missileFired || performance.now() - fire.startedAt >= 350) {
-        if (!fire.missileFired) this.missileQueued = true;
-      } else {
-        this.touchFireQueued = true;
-      }
-    }
-    this.firePointers.delete(pointerId);
-  }
-
-  /** Latest mouse position in canvas coords, or null before any mouse motion. */
+  /** Latest aim point in simulation coords: held touch first, else the mouse. */
   aimCanvasPoint(): { x: number; y: number } | null {
+    if (this.aimPointer && this.toCanvas) {
+      return this.toCanvas(this.aimPointer.x, this.aimPointer.y);
+    }
     return this.mouseAim;
   }
 
-  /** Raw aim-stick displacement in client px while active, else null. */
+  /** Relative aim displacement — gamepad only; touch aim is absolute. */
   aimStickDir(): { dx: number; dy: number } | null {
-    return this.aimStick.active
-      ? { dx: this.aimStick.dx, dy: this.aimStick.dy }
-      : this.gamepadAim;
+    return this.gamepadAim;
+  }
+
+  /** Live floating-control state for the screen-space renderer. */
+  touchVisuals(): {
+    steer: { ox: number; oy: number; dx: number; dy: number } | null;
+    aiming: boolean;
+  } {
+    return {
+      steer: this.steerPointer
+        ? {
+          ox: this.steerPointer.ox,
+          oy: this.steerPointer.oy,
+          dx: this.steerPointer.dx,
+          dy: this.steerPointer.dy,
+        }
+        : null,
+      aiming: this.aimPointer !== null,
+    };
   }
 
   consumeConfirm(): boolean {

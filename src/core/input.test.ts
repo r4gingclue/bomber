@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Input, touchButtons, touchControls } from './input';
+import { Input, touchButtons, touchControls, type TouchControls } from './input';
 import { GamepadInput, type GamepadLike } from './gamepad';
 import { clientToWorld } from '../render/viewport';
 import { uiLayout } from '../render/ui-layout';
@@ -12,11 +12,6 @@ function event(type: string, props: Record<string, unknown> = {}): Event {
     Object.defineProperty(e, key, { value });
   }
   return e;
-}
-
-function touchEvent(type: 'pointerdown' | 'pointerup' | 'pointercancel', pointerId: number): Event {
-  const fire = touchControls().fire;
-  return event(type, { pointerType: 'touch', pointerId, clientX: fire.x, clientY: fire.y });
 }
 
 function setupInput(): { input: Input; canvas: EventTarget; keyboard: EventTarget } {
@@ -62,12 +57,12 @@ it('maps the center of a 960x540 display back to 480x270 simulation space', () =
 });
 
 it('maps render-space touch controls back to the matching simulation hit region', () => {
-  const renderFire = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true).fire;
+  const renderMissile = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true).missile;
 
-  expect(touchButtons().fire).toEqual({
-    x: renderFire.x / 2,
-    y: renderFire.y / 2,
-    r: renderFire.r / 2,
+  expect(touchButtons().missile).toEqual({
+    x: renderMissile.x / 2,
+    y: renderMissile.y / 2,
+    r: renderMissile.r / 2,
   });
 });
 
@@ -200,16 +195,6 @@ it('uses the visible MOVE circle as the movement hitbox', () => {
   expect(input.poll().move).toEqual({ x: 1, y: 0 });
 });
 
-it('does not turn a far left-half touch outside MOVE into movement', () => {
-  const { input, canvas } = setupInput();
-
-  canvas.dispatchEvent(event('pointerdown', { pointerType: 'touch', pointerId: 8, clientX: 0, clientY: 0 }));
-  canvas.dispatchEvent(event('pointermove', { pointerType: 'touch', pointerId: 8, clientX: 40, clientY: 0 }));
-
-  expect(input.poll().move).toEqual({ x: 0, y: 0 });
-  expect(input.aimStickDir()).toEqual({ dx: 40, dy: 0 });
-});
-
 it('queues DROP from its visible touch target', () => {
   const { input, canvas } = setupInput();
   const drop = touchControls().drop;
@@ -272,69 +257,6 @@ describe('missile input', () => {
     expect(input.poll().missile).toBe(false);
   });
 
-  it('queues exactly one cannon shot for a short touch tap on release', () => {
-    const { input, canvas } = setupInput();
-    canvas.dispatchEvent(touchEvent('pointerdown', 1));
-    now = 200;
-    canvas.dispatchEvent(touchEvent('pointerup', 1));
-
-    expect(input.poll()).toMatchObject({ fire: true, missile: false });
-    expect(input.poll()).toMatchObject({ fire: false, missile: false });
-  });
-
-  it('does not fire or queue a missile before a 350ms fire-button hold', () => {
-    const { input, canvas } = setupInput();
-    canvas.dispatchEvent(touchEvent('pointerdown', 1));
-    now = 349;
-
-    const intent = input.poll();
-
-    expect(intent.fire).toBe(false);
-    expect(intent.missile).toBe(false);
-  });
-
-  it('queues one missile at 350ms with no cannon fire, then clears on repeat polls', () => {
-    const { input, canvas } = setupInput();
-    canvas.dispatchEvent(touchEvent('pointerdown', 1));
-    now = 350;
-
-    expect(input.poll()).toMatchObject({ fire: false, missile: true });
-    expect(input.poll()).toMatchObject({ fire: false, missile: false });
-    now = 700;
-    expect(input.poll()).toMatchObject({ fire: false, missile: false });
-    canvas.dispatchEvent(touchEvent('pointerup', 1));
-    expect(input.poll()).toMatchObject({ fire: false, missile: false });
-  });
-
-  it('queues another missile only after release and re-hold', () => {
-    const { input, canvas } = setupInput();
-    canvas.dispatchEvent(touchEvent('pointerdown', 1));
-    now = 350;
-    expect(input.poll()).toMatchObject({ fire: false, missile: true });
-    now = 700;
-    expect(input.poll().missile).toBe(false);
-
-    canvas.dispatchEvent(touchEvent('pointerup', 1));
-    now = 800;
-    canvas.dispatchEvent(touchEvent('pointerdown', 2));
-    now = 1150;
-
-    expect(input.poll()).toMatchObject({ fire: false, missile: true });
-  });
-
-  it('keeps simultaneous touch holds independent', () => {
-    const { input, canvas } = setupInput();
-    canvas.dispatchEvent(touchEvent('pointerdown', 1));
-    now = 100;
-    canvas.dispatchEvent(touchEvent('pointerdown', 2));
-    now = 200;
-    canvas.dispatchEvent(touchEvent('pointerup', 2)); // short tap from pointer 2
-
-    expect(input.poll()).toMatchObject({ fire: true, missile: false });
-    now = 350; // pointer 1 is still held long enough
-    expect(input.poll()).toMatchObject({ fire: false, missile: true });
-  });
-
   it('keeps keyboard and mouse fire continuous', () => {
     const { input, canvas, keyboard } = setupInput();
     keyboard.dispatchEvent(event('keydown', { code: 'KeyF', repeat: false }));
@@ -363,7 +285,7 @@ describe('missile input', () => {
 it('clears every held and queued input state on blur', () => {
   const { input, canvas, keyboard } = setupInput();
   const move = touchControls().move;
-  const fire = touchControls().fire;
+  const missile = touchControls().missile;
 
   keyboard.dispatchEvent(event('keydown', { code: 'KeyF', repeat: false }));
   keyboard.dispatchEvent(event('keydown', { code: 'KeyE', repeat: false }));
@@ -396,8 +318,8 @@ it('clears every held and queued input state on blur', () => {
   canvas.dispatchEvent(event('pointerdown', {
     pointerType: 'touch',
     pointerId: 3,
-    clientX: fire.x,
-    clientY: fire.y,
+    clientX: missile.x,
+    clientY: missile.y,
   }));
 
   keyboard.dispatchEvent(event('blur'));
@@ -415,4 +337,203 @@ it('clears every held and queued input state on blur', () => {
   expect(input.aimStickDir()).toBeNull();
   expect(input.consumeConfirm()).toBe(false);
   expect(input.consumeUpgradeAction()).toBeNull();
+});
+
+const CONTROLS: TouchControls = {
+  move: { x: 80, y: 400, r: 40 },
+  missile: { x: 880, y: 300, r: 40 },
+  drop: { x: 880, y: 400, r: 40 },
+  zoneSplitX: 480,
+};
+
+class FakeEl {
+  private handlers = new Map<string, ((e: PointerEvent) => void)[]>();
+  addEventListener(type: string, fn: (e: PointerEvent) => void): void {
+    const list = this.handlers.get(type) ?? [];
+    list.push(fn);
+    this.handlers.set(type, list);
+  }
+  emit(type: string, e: Partial<PointerEvent>): void {
+    for (const fn of this.handlers.get(type) ?? []) {
+      fn({ pointerType: 'touch', ...e } as PointerEvent);
+    }
+  }
+}
+
+function harness() {
+  vi.stubGlobal('window', new EventTarget());
+  const el = new FakeEl();
+  const input = new Input();
+  input.attach(el as unknown as HTMLElement);
+  input.setTouchControls(CONTROLS);
+  input.toCanvas = (x, y) => ({ x, y });
+  return { el, input };
+}
+
+describe('floating steering zone', () => {
+  it('starts the stick wherever the left-side thumb lands', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointermove', { pointerId: 1, clientX: 240, clientY: 500 });
+    expect(input.poll().move.x).toBeCloseTo(1, 5); // +40px = full deflection
+  });
+
+  it('ignores movement below the dead zone', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointermove', { pointerId: 1, clientX: 204, clientY: 500 });
+    expect(input.poll().move.x).toBe(0);
+  });
+
+  it('stops steering on release', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointermove', { pointerId: 1, clientX: 260, clientY: 500 });
+    el.emit('pointerup', { pointerId: 1, clientX: 260, clientY: 500 });
+    expect(input.poll().move.x).toBe(0);
+  });
+});
+
+describe('floating aim/fire zone', () => {
+  it('fires continuously while a right-side pointer is held', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    expect(input.poll().fire).toBe(true);
+    expect(input.poll().fire).toBe(true); // still held on the next frame
+    el.emit('pointerup', { pointerId: 2, clientX: 700, clientY: 200 });
+    expect(input.poll().fire).toBe(false);
+  });
+
+  it('aims at the finger position and follows it', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    expect(input.aimCanvasPoint()).toEqual({ x: 700, y: 200 });
+    el.emit('pointermove', { pointerId: 2, clientX: 640, clientY: 260 });
+    expect(input.aimCanvasPoint()).toEqual({ x: 640, y: 260 });
+  });
+
+  it('does not report a relative stick direction for touch aim', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    expect(input.aimStickDir()).toBeNull();
+  });
+});
+
+describe('action buttons', () => {
+  it('queues exactly one drop per tap and never aims', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 3, clientX: 880, clientY: 400 });
+    const first = input.poll();
+    expect(first.drop).toBe(true);
+    expect(first.fire).toBe(false);
+    expect(input.poll().drop).toBe(false);
+  });
+
+  it('queues exactly one missile per tap', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 4, clientX: 880, clientY: 300 });
+    expect(input.poll().missile).toBe(true);
+    expect(input.poll().missile).toBe(false);
+  });
+
+  it('does not launch a second missile when the button is held', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 4, clientX: 880, clientY: 300 });
+    expect(input.poll().missile).toBe(true);
+    for (let i = 0; i < 5; i++) expect(input.poll().missile).toBe(false);
+    el.emit('pointerup', { pointerId: 4, clientX: 880, clientY: 300 });
+    expect(input.poll().missile).toBe(false);
+  });
+});
+
+describe('pointer role locking', () => {
+  it('keeps steering when the thumb slides into the aim half', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointermove', { pointerId: 1, clientX: 700, clientY: 500 });
+    expect(input.poll().fire).toBe(false);       // never becomes an aim pointer
+    expect(input.aimCanvasPoint()).toBeNull();
+    expect(input.poll().move.x).toBeCloseTo(1, 5); // clamped full deflection
+  });
+
+  it('keeps aiming when the finger slides into the steering half', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    el.emit('pointermove', { pointerId: 2, clientX: 100, clientY: 200 });
+    expect(input.poll().fire).toBe(true);
+    expect(input.aimCanvasPoint()).toEqual({ x: 100, y: 200 });
+    expect(input.poll().move.x).toBe(0); // did not become a steer pointer
+  });
+
+  it('supports steering and firing at the same time', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    el.emit('pointermove', { pointerId: 1, clientX: 240, clientY: 500 });
+    const intent = input.poll();
+    expect(intent.move.x).toBeCloseTo(1, 5);
+    expect(intent.fire).toBe(true);
+  });
+
+  it('allows button taps while both zones are held', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    el.emit('pointerdown', { pointerId: 3, clientX: 880, clientY: 400 });
+    el.emit('pointerdown', { pointerId: 4, clientX: 880, clientY: 300 });
+    const intent = input.poll();
+    expect(intent.drop).toBe(true);
+    expect(intent.missile).toBe(true);
+    expect(intent.fire).toBe(true);
+  });
+
+  it('releasing one zone leaves the other active', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    el.emit('pointermove', { pointerId: 1, clientX: 240, clientY: 500 });
+    el.emit('pointerup', { pointerId: 2, clientX: 700, clientY: 200 });
+    const intent = input.poll();
+    expect(intent.fire).toBe(false);
+    expect(intent.move.x).toBeCloseTo(1, 5);
+  });
+});
+
+describe('touch teardown', () => {
+  it('clears held touches on pointercancel', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    el.emit('pointermove', { pointerId: 1, clientX: 240, clientY: 500 });
+    el.emit('pointercancel', { pointerId: 1, clientX: 240, clientY: 500 });
+    el.emit('pointercancel', { pointerId: 2, clientX: 700, clientY: 200 });
+    const intent = input.poll();
+    expect(intent.move.x).toBe(0);
+    expect(intent.fire).toBe(false);
+    expect(input.aimCanvasPoint()).toBeNull();
+  });
+
+  it('resetTransient drops every held touch', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    input.resetTransient();
+    const intent = input.poll();
+    expect(intent.move.x).toBe(0);
+    expect(intent.fire).toBe(false);
+  });
+});
+
+describe('touchVisuals', () => {
+  it('reports the live steer origin and aim state', () => {
+    const { el, input } = harness();
+    expect(input.touchVisuals()).toEqual({ steer: null, aiming: false });
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointermove', { pointerId: 1, clientX: 220, clientY: 480 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    expect(input.touchVisuals()).toEqual({
+      steer: { ox: 200, oy: 500, dx: 20, dy: -20 },
+      aiming: true,
+    });
+  });
 });
