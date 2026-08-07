@@ -99,10 +99,10 @@ it('keeps portrait detail strictly above the footer ink box', () => {
   const layout = upgradeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 }, 'weapons', UPGRADE_NODES);
 
   expect(layout.footer).toMatchObject({
-    fontSize: 10,
+    fontSize: 11,
     baseline: 732,
-    inkTop: 722,
-    detailGap: 2,
+    inkTop: 721,
+    detailGap: 3,
   });
   expect(layout.detail!.y + layout.detail!.h).toBeLessThanOrEqual(720);
 });
