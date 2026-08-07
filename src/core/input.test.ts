@@ -522,6 +522,17 @@ describe('touch teardown', () => {
     expect(intent.move.x).toBe(0);
     expect(intent.fire).toBe(false);
   });
+
+  it('discardPhaseQueues drops a held steer/aim touch on death or phase change', () => {
+    const { el, input } = harness();
+    el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
+    el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    input.discardPhaseQueues();
+    const intent = input.poll();
+    expect(intent.move.x).toBe(0);
+    expect(intent.fire).toBe(false);
+    expect(input.aimCanvasPoint()).toBeNull();
+  });
 });
 
 describe('touchVisuals', () => {

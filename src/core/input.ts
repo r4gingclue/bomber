@@ -168,6 +168,9 @@ export class Input {
     this.missileQueued = false;
     this.confirmQueued = false;
     this.upgradeActionQueued = null;
+    this.pointerRoles.clear();
+    this.steerPointer = null;
+    this.aimPointer = null;
   }
 
   poll(): Intent {
