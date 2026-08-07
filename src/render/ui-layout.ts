@@ -10,8 +10,10 @@ export interface UiLayout {
   hud: { x: number; y: number; w: number; h: number; fontSize: number };
   objective: { x: number; y: number };
   move: UiCircle;
-  fire: UiCircle;
+  missile: UiCircle;
   drop: UiCircle;
+  /** client-x boundary: touches left of this steer, right of this aim */
+  zoneSplitX: number;
   controlsInLetterbox: boolean;
   controlOpacity: number;
   gameplaySafe: UiRect;
@@ -56,25 +58,31 @@ export function uiLayout(
   let controlsInLetterbox = false;
   let controlOpacity = 0.54;
   let move: UiCircle;
-  let fire: UiCircle;
+  let missile: UiCircle;
   let drop: UiCircle;
 
   const topBar = battlefield.y - i.top;
   const bottomBar = safeBottom - (battlefield.y + battlefield.h);
   const leftBar = battlefield.x - i.left;
   const rightBar = safeRight - (battlefield.x + battlefield.w);
-  if (touch && bottomBar >= r * 2 + 8) {
+  const stackGap = 12;
+  // NOTE: this guard intentionally excludes some 4:3 tablet sizes (e.g. iPad
+  // 1024x768 landscape) from the letterbox layout in favor of the compact
+  // overlay below. Two stacked 44px buttons need ~100px of bar, and an iPad's
+  // ~96px bar can't fit that without shrinking below the 44px touch-target
+  // floor, so the compact overlay is the correct fallback here.
+  if (touch && bottomBar >= r * 6 + stackGap * 2 + 8) {
     const y = battlefield.y + battlefield.h + bottomBar / 2;
     move = { x: i.left + r + 16, y, r };
-    fire = { x: safeRight - r - 16, y, r };
-    drop = { x: fire.x - r * 2 - 16, y, r };
+    drop = { x: safeRight - r - 16, y, r };
+    missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlsInLetterbox = true;
     controlOpacity = 0.66;
-  } else if (touch && topBar >= r * 2 + 8) {
+  } else if (touch && topBar >= r * 6 + stackGap * 2 + 8) {
     const y = i.top + topBar / 2;
     move = { x: i.left + r + 16, y, r };
-    fire = { x: safeRight - r - 16, y, r };
-    drop = { x: fire.x - r * 2 - 16, y, r };
+    drop = { x: safeRight - r - 16, y, r };
+    missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlsInLetterbox = true;
     controlOpacity = 0.66;
   } else if (touch && leftBar >= r * 2 + 8 && rightBar >= r * 2 + 8) {
@@ -83,16 +91,12 @@ export function uiLayout(
       y: Math.min(safeBottom - r - 8, battlefield.y + battlefield.h * 0.72),
       r,
     };
-    fire = {
+    drop = {
       x: battlefield.x + battlefield.w + rightBar / 2,
       y: Math.min(safeBottom - r - 8, battlefield.y + battlefield.h * 0.72),
       r,
     };
-    drop = {
-      x: fire.x,
-      y: Math.max(i.top + r + 8, battlefield.y + battlefield.h * 0.28),
-      r,
-    };
+    missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlsInLetterbox = true;
     controlOpacity = 0.66;
   } else if (touch) {
@@ -103,21 +107,17 @@ export function uiLayout(
       y: battlefield.y + battlefield.h - r - edge,
       r,
     };
-    fire = {
-      x: battlefield.x + battlefield.w - r - edge,
-      y: battlefield.y + battlefield.h - r - edge,
-      r,
-    };
     drop = {
-      x: fire.x,
-      y: fire.y - r * 2 - 12,
+      x: Math.min(battlefield.x + battlefield.w, safeRight) - r - edge,
+      y: Math.min(battlefield.y + battlefield.h, safeBottom) - r - edge,
       r,
     };
+    missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
     controlOpacity = 0.36;
   } else {
     move = { x: i.left + r + 28, y: safeBottom - r - 24, r };
-    fire = { x: safeRight - r - 28, y: safeBottom - r - 94, r };
-    drop = { x: safeRight - r - 108, y: safeBottom - r - 18, r };
+    drop = { x: safeRight - r - 28, y: safeBottom - r - 24, r };
+    missile = { x: drop.x, y: drop.y - r * 2 - stackGap, r };
   }
 
   const safeX = controlsInLetterbox
@@ -127,7 +127,7 @@ export function uiLayout(
     ? battlefield.x + battlefield.w - 8
     : Math.min(
       battlefield.x + battlefield.w - 8,
-      fire.x - fire.r - 8,
+      missile.x - missile.r - 8,
       drop.x - drop.r - 8,
     );
 
@@ -137,8 +137,9 @@ export function uiLayout(
     hud: { x: i.left + 20, y: i.top + 20, w: hudW, h: 72, fontSize: 16 },
     objective: { x: i.left + availableW / 2, y: i.top + 36 },
     move,
-    fire,
+    missile,
     drop,
+    zoneSplitX: i.left + availableW / 2,
     controlsInLetterbox,
     controlOpacity,
     gameplaySafe: {

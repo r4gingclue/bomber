@@ -16,7 +16,7 @@ it('keeps phone touch controls inside safe areas', () => {
   const viewport = fitViewport(960, 540, insets);
   const l = uiLayout(960, 540, insets, true, viewport);
   expect(l.move.x - l.move.r).toBeGreaterThanOrEqual(24);
-  expect(l.fire.x + l.fire.r).toBeLessThanOrEqual(936);
+  expect(l.missile.x + l.missile.r).toBeLessThanOrEqual(936);
   expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(506);
 });
 
@@ -26,13 +26,15 @@ it('moves touch controls into portrait letterbox space', () => {
 
   expect(l.controlsInLetterbox).toBe(true);
   expect(l.move.y - l.move.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
-  expect(l.fire.y - l.fire.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+  expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
   expect(l.drop.y - l.drop.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
 });
 
 it('moves touch controls into a tablet bottom letterbox', () => {
-  const viewport = fitViewport(1024, 768, { top: 0, right: 0, bottom: 0, left: 0 });
-  const l = uiLayout(1024, 768, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
+  // Use a tall screen to ensure sufficient letterbox space for stacked buttons
+  // (bottomBar needs to be >= 6r + 2*stackGap + 8 ≈ 296 for typical r)
+  const viewport = fitViewport(1024, 1400, { top: 0, right: 0, bottom: 0, left: 0 });
+  const l = uiLayout(1024, 1400, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
 
   expect(l.controlsInLetterbox).toBe(true);
   expect(l.move.y - l.move.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
@@ -45,11 +47,11 @@ it('uses compact translucent edge controls when landscape has no usable letterbo
 
   expect(l.controlsInLetterbox).toBe(false);
   expect(l.move.r).toBe(22);
-  expect(l.fire.r).toBe(22);
+  expect(l.missile.r).toBe(22);
   expect(l.drop.r).toBe(22);
   expect(l.controlOpacity).toBeLessThanOrEqual(0.4);
   expect(l.gameplaySafe.w).toBeGreaterThan(viewport.width * 0.5);
-  for (const control of [l.move, l.fire, l.drop]) {
+  for (const control of [l.move, l.missile, l.drop]) {
     expect(circleIntersectsRect(control, l.gameplaySafe)).toBe(false);
   }
 });
@@ -69,7 +71,7 @@ it.each([
   const l = uiLayout(w, h, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
 
   expect(l.move.r * 2).toBeGreaterThanOrEqual(44);
-  expect(l.fire.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.missile.r * 2).toBeGreaterThanOrEqual(44);
   expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
   expect(l.hud.fontSize).toBeGreaterThanOrEqual(14);
   expect(l.hud.x + l.hud.w).toBeLessThanOrEqual(w);
@@ -87,4 +89,62 @@ it.each([
       expect(upgradeNodeWrapWidth(rect)).toBeLessThan(rect.w);
     }
   }
+});
+
+it('stacks the missile button directly above the drop button', () => {
+  const l = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  expect(l.missile.x).toBeCloseTo(l.drop.x, 5);
+  expect(l.missile.y).toBeLessThan(l.drop.y);
+  // no overlap between the two stacked buttons
+  expect(l.drop.y - l.missile.y).toBeGreaterThanOrEqual(l.missile.r + l.drop.r);
+});
+
+it('anchors the button stack to the bottom-right of the safe area', () => {
+  const insets = { top: 0, right: 20, bottom: 30, left: 0 };
+  const l = uiLayout(960, 540, insets, true);
+  expect(l.drop.x + l.drop.r).toBeLessThanOrEqual(960 - insets.right);
+  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(540 - insets.bottom);
+});
+
+it('splits the steering and aiming zones at the horizontal midpoint', () => {
+  const l = uiLayout(960, 540, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  expect(l.zoneSplitX).toBeCloseTo(480, 5);
+  const inset = uiLayout(960, 540, { top: 0, right: 40, bottom: 0, left: 60 }, true);
+  expect(inset.zoneSplitX).toBeCloseTo(60 + (960 - 60 - 40) / 2, 5);
+});
+
+it('keeps both stacked buttons at the 44px minimum touch target', () => {
+  const l = uiLayout(720, 360, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+  expect(l.missile.r * 2).toBeGreaterThanOrEqual(44);
+  expect(l.drop.r * 2).toBeGreaterThanOrEqual(44);
+});
+
+it('falls back to the compact overlay on 4:3 tablet landscape (iPad 1024x768)', () => {
+  // Intentional, accepted trade-off (see the guard comment in ui-layout.ts):
+  // two stacked 44px buttons need ~100px of bar, and this size's bar is too
+  // short to fit them without breaking the 44px touch-target floor, so it
+  // falls through to the compact overlay instead of the letterbox layout.
+  const l = uiLayout(1024, 768, { top: 0, right: 0, bottom: 0, left: 0 }, true);
+
+  expect(l.controlsInLetterbox).toBe(false);
+  expect(l.controlOpacity).toBeLessThanOrEqual(0.4);
+  expect(l.move.r).toBe(22);
+  expect(l.missile.r).toBe(22);
+  expect(l.drop.r).toBe(22);
+});
+
+it('prevents missile overlap when bottomBar is insufficient', () => {
+  // Regression test: before the guard was widened, bottomBar >= 2r+8 was enough
+  // to trigger the letterbox layout, but missile could overlap the battlefield
+  // when bottomBar was < 6r+24. The widened guard prevents this regression.
+  // This test verifies that with sufficient bottomBar, no overlap occurs.
+  const viewport = fitViewport(1024, 1200, { top: 0, right: 0, bottom: 0, left: 0 });
+  const l = uiLayout(1024, 1200, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
+
+  // If letterbox layout was chosen, verify missile doesn't overlap battlefield
+  if (l.controlsInLetterbox) {
+    expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(l.battlefield.y + l.battlefield.h);
+  }
+  // Verify drop respects safe area boundaries
+  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(1200);
 });

@@ -2,7 +2,7 @@ import { RENDER_H, RENDER_SCALE, RENDER_W, VIEW_W, VIEW_H, WATERLINE } from '../
 import type { World } from '../game/world';
 import type { Phase } from '../game/state';
 import type { PostWaveView } from '../game/post-wave';
-import type { UiLayout } from './ui-layout';
+import type { UiCircle, UiLayout } from './ui-layout';
 import { PALETTES, actTitle } from '../game/biomes';
 import { COL_W, COLS, isWater } from '../game/terrain';
 import { AIR, GROUND } from '../game/waves';
@@ -72,6 +72,11 @@ export class Renderer {
     ctx.imageSmoothingQuality = 'high';
     uiCtx.imageSmoothingEnabled = true;
   }
+
+  private touchVisualState: {
+    steer: { ox: number; oy: number; dx: number; dy: number } | null;
+    aiming: boolean;
+  } = { steer: null, aiming: false };
 
   draw(
     world: World,
@@ -156,6 +161,13 @@ export class Renderer {
     if (phase === 'menu') this.menu();
     if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
+  }
+
+  setTouchVisuals(visuals: {
+    steer: { ox: number; oy: number; dx: number; dy: number } | null;
+    aiming: boolean;
+  }): void {
+    this.touchVisualState = visuals;
   }
 
   private drawBackground(
@@ -904,25 +916,50 @@ export class Renderer {
 
   private touchOverlay(layout: UiLayout): void {
     const ctx = this.uiCtx;
-    for (const [key, btn] of Object.entries({ move: layout.move, fire: layout.fire, drop: layout.drop }) as ['move' | 'fire' | 'drop', { x: number; y: number; r: number }][]) {
-      ctx.fillStyle = `rgba(4, 13, 24, ${(layout.controlOpacity * 0.62).toFixed(2)})`;
+    const fill = `rgba(4, 13, 24, ${(layout.controlOpacity * 0.62).toFixed(2)})`;
+    const stroke = `rgba(232,242,255,${layout.controlOpacity.toFixed(2)})`;
+    const label = `rgba(232,242,255,${Math.min(0.82, layout.controlOpacity + 0.22).toFixed(2)})`;
+
+    const buttons: [string, UiCircle][] = [
+      ['MISSILE', layout.missile],
+      ['DROP', layout.drop],
+    ];
+    for (const [key, btn] of buttons) {
+      ctx.fillStyle = fill;
       ctx.beginPath();
       ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = `rgba(232,242,255,${layout.controlOpacity.toFixed(2)})`;
+      ctx.strokeStyle = stroke;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
       ctx.stroke();
-      this.text(
-        key.toUpperCase(),
-        btn.x,
-        btn.y + 6,
-        14,
-        `rgba(232,242,255,${Math.min(0.82, layout.controlOpacity + 0.22).toFixed(2)})`,
-        true,
-        ctx,
-      );
+      this.text(key, btn.x, btn.y + 5, key.length > 4 ? 11 : 14, label, true, ctx);
+    }
+
+    const steer = this.touchVisualState.steer;
+    const base = steer
+      ? { x: steer.ox, y: steer.oy, r: layout.move.r }
+      : layout.move;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(base.x, base.y, base.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(base.x, base.y, base.r, 0, Math.PI * 2);
+    ctx.stroke();
+    if (steer) {
+      // knob follows the thumb, clamped to the ring
+      const len = Math.hypot(steer.dx, steer.dy);
+      const cap = len > base.r ? base.r / len : 1;
+      ctx.fillStyle = `rgba(232,242,255,${Math.min(0.9, layout.controlOpacity + 0.3).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(base.x + steer.dx * cap, base.y + steer.dy * cap, base.r * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      this.text('MOVE', base.x, base.y + 5, 14, label, true, ctx);
     }
   }
 
