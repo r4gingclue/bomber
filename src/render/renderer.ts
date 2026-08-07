@@ -75,8 +75,8 @@ export class Renderer {
 
   private touchVisualState: {
     steer: { ox: number; oy: number; dx: number; dy: number } | null;
-    aiming: boolean;
-  } = { steer: null, aiming: false };
+    aim: { ox: number; oy: number; dx: number; dy: number } | null;
+  } = { steer: null, aim: null };
 
   draw(
     world: World,
@@ -165,7 +165,7 @@ export class Renderer {
 
   setTouchVisuals(visuals: {
     steer: { ox: number; oy: number; dx: number; dy: number } | null;
-    aiming: boolean;
+    aim: { ox: number; oy: number; dx: number; dy: number } | null;
   }): void {
     this.touchVisualState = visuals;
   }
@@ -937,10 +937,22 @@ export class Renderer {
       this.text(key, btn.x, btn.y + 5, key.length > 4 ? 11 : 14, label, true, ctx);
     }
 
-    const steer = this.touchVisualState.steer;
-    const base = steer
-      ? { x: steer.ox, y: steer.oy, r: layout.move.r }
-      : layout.move;
+    this.drawJoystick(layout.move, this.touchVisualState.steer, 'MOVE', fill, stroke, label);
+    this.drawJoystick(layout.aim, this.touchVisualState.aim, 'AIM', fill, stroke, label);
+  }
+
+  private drawJoystick(
+    baseCircle: UiCircle,
+    pointer: { ox: number; oy: number; dx: number; dy: number } | null,
+    labelKey: string,
+    fill: string,
+    stroke: string,
+    label: string,
+  ): void {
+    const ctx = this.uiCtx;
+    const base = pointer
+      ? { x: pointer.ox, y: pointer.oy, r: baseCircle.r }
+      : baseCircle;
     ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(base.x, base.y, base.r, 0, Math.PI * 2);
@@ -950,16 +962,15 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(base.x, base.y, base.r, 0, Math.PI * 2);
     ctx.stroke();
-    if (steer) {
-      // knob follows the thumb, clamped to the ring
-      const len = Math.hypot(steer.dx, steer.dy);
+    if (pointer) {
+      const len = Math.hypot(pointer.dx, pointer.dy);
       const cap = len > base.r ? base.r / len : 1;
-      ctx.fillStyle = `rgba(232,242,255,${Math.min(0.9, layout.controlOpacity + 0.3).toFixed(2)})`;
+      ctx.fillStyle = `rgba(232,242,255,${Math.min(0.9, labelKey === 'AIM' ? 0.7 : 0.3).toFixed(2)})`;
       ctx.beginPath();
-      ctx.arc(base.x + steer.dx * cap, base.y + steer.dy * cap, base.r * 0.42, 0, Math.PI * 2);
+      ctx.arc(base.x + pointer.dx * cap, base.y + pointer.dy * cap, base.r * 0.42, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      this.text('MOVE', base.x, base.y + 5, 14, label, true, ctx);
+      this.text(labelKey, base.x, base.y + 5, 14, label, true, ctx);
     }
   }
 

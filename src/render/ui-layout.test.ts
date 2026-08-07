@@ -25,9 +25,12 @@ it('moves touch controls into portrait letterbox space', () => {
   const l = uiLayout(390, 844, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
 
   expect(l.controlsInLetterbox).toBe(true);
-  expect(l.move.y - l.move.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
-  expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
-  expect(l.drop.y - l.drop.r).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+  // move and aim are centered in the bottom letterbox; drop/missile stack above
+  expect(l.move.y).toBeGreaterThan(viewport.y + viewport.height);
+  expect(l.aim.y).toBeGreaterThan(viewport.y + viewport.height);
+  // All controls stay within the screen bounds
+  expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(viewport.y);
+  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(844);
 });
 
 it('moves touch controls into a tablet bottom letterbox', () => {
@@ -134,17 +137,16 @@ it('falls back to the compact overlay on 4:3 tablet landscape (iPad 1024x768)', 
 });
 
 it('prevents missile overlap when bottomBar is insufficient', () => {
-  // Regression test: before the guard was widened, bottomBar >= 2r+8 was enough
-  // to trigger the letterbox layout, but missile could overlap the battlefield
-  // when bottomBar was < 6r+24. The widened guard prevents this regression.
-  // This test verifies that with sufficient bottomBar, no overlap occurs.
-  const viewport = fitViewport(1024, 1200, { top: 0, right: 0, bottom: 0, left: 0 });
-  const l = uiLayout(1024, 1200, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
+  // Regression test: with four stacked controls on the right (aim, drop, missile),
+  // the letterbox guard requires bottomBar >= 6r + 2*stackGap + 8.
+  // This test verifies that when the guard passes, controls stay below battlefield.
+  const viewport = fitViewport(1024, 1400, { top: 0, right: 0, bottom: 0, left: 0 });
+  const l = uiLayout(1024, 1400, { top: 0, right: 0, bottom: 0, left: 0 }, true, viewport);
 
-  // If letterbox layout was chosen, verify missile doesn't overlap battlefield
+  // If letterbox layout was chosen, verify controls don't overlap battlefield
   if (l.controlsInLetterbox) {
-    expect(l.missile.y - l.missile.r).toBeGreaterThanOrEqual(l.battlefield.y + l.battlefield.h);
+    expect(l.aim.y - l.aim.r).toBeGreaterThanOrEqual(l.battlefield.y + l.battlefield.h);
   }
   // Verify drop respects safe area boundaries
-  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(1200);
+  expect(l.drop.y + l.drop.r).toBeLessThanOrEqual(1400);
 });

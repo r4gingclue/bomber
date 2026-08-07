@@ -17,7 +17,8 @@ export interface TouchControls {
   move: UiCircle;
   missile: UiCircle;
   drop: UiCircle;
-  /** client-x boundary: touches left of this steer, right of this aim */
+  aim: UiCircle;
+  /** client-x boundary: touches left of this move, right of this aim */
   zoneSplitX: number;
 }
 
@@ -26,6 +27,7 @@ export function touchControls(): TouchControls {
   const layout = uiLayout(RENDER_W, RENDER_H, { top: 0, right: 0, bottom: 0, left: 0 }, true);
   return {
     move: layout.move,
+    aim: layout.aim,
     missile: layout.missile,
     drop: layout.drop,
     zoneSplitX: layout.zoneSplitX,
@@ -55,7 +57,7 @@ export class Input {
   private mouseFire = false;
   private controls: TouchControls = touchControls();
   private steerPointer: { id: number; ox: number; oy: number; dx: number; dy: number } | null = null;
-  private aimPointer: { id: number; x: number; y: number } | null = null;
+  private aimPointer: { id: number; ox: number; oy: number; dx: number; dy: number } | null = null;
   private mouseAim: { x: number; y: number } | null = null;
   private gamepadAim: { dx: number; dy: number } | null = null;
   /** true once any touch input has been seen (renderer shows touch UI) */
@@ -110,14 +112,13 @@ export class Input {
         return;
       }
       if (e.clientX < controls.zoneSplitX) {
-        // First finger in this zone wins the role for its whole lifetime; a second
-        // finger landing in an already-owned zone (palm edge, re-plant before lift)
-        // must not steal ownership and orphan the first finger's control.
+        // Left zone: movement joystick
         if (this.steerPointer) return;
         this.steerPointer = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 };
       } else {
+        // Right zone: aim joystick (absolute position within circle)
         if (this.aimPointer) return;
-        this.aimPointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
+        this.aimPointer = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 };
       }
     });
     el.addEventListener('pointermove', e => {
@@ -130,8 +131,8 @@ export class Input {
         this.steerPointer.dy = e.clientY - this.steerPointer.oy;
       }
       if (this.aimPointer && e.pointerId === this.aimPointer.id) {
-        this.aimPointer.x = e.clientX;
-        this.aimPointer.y = e.clientY;
+        this.aimPointer.dx = e.clientX - this.aimPointer.ox;
+        this.aimPointer.dy = e.clientY - this.aimPointer.oy;
       }
     });
     const endPointer = (e: PointerEvent) => {
@@ -206,20 +207,31 @@ export class Input {
   /** Latest aim point in simulation coords: held touch first, else the mouse. */
   aimCanvasPoint(): { x: number; y: number } | null {
     if (this.aimPointer && this.toCanvas) {
-      return this.toCanvas(this.aimPointer.x, this.aimPointer.y);
+      const base = this.controls.aim;
+      const len = Math.hypot(this.aimPointer.dx, this.aimPointer.dy);
+      const cap = len > base.r ? base.r / len : 1;
+      const simX = this.aimPointer.ox + this.aimPointer.dx * cap;
+      const simY = this.aimPointer.oy + this.aimPointer.dy * cap;
+      return this.toCanvas(simX, simY);
     }
     return this.mouseAim;
   }
 
-  /** Relative aim displacement — gamepad only; touch aim is absolute. */
+  /** Relative aim displacement from right joystick — touch or gamepad. */
   aimStickDir(): { dx: number; dy: number } | null {
+    if (this.aimPointer) {
+      const base = this.controls.aim;
+      const len = Math.hypot(this.aimPointer.dx, this.aimPointer.dy);
+      const cap = len > base.r ? base.r / len : 1;
+      return { dx: (this.aimPointer.dx * cap) / base.r, dy: (this.aimPointer.dy * cap) / base.r };
+    }
     return this.gamepadAim;
   }
 
   /** Live floating-control state for the screen-space renderer. */
   touchVisuals(): {
     steer: { ox: number; oy: number; dx: number; dy: number } | null;
-    aiming: boolean;
+    aim: { ox: number; oy: number; dx: number; dy: number } | null;
   } {
     return {
       steer: this.steerPointer
@@ -230,7 +242,14 @@ export class Input {
           dy: this.steerPointer.dy,
         }
         : null,
-      aiming: this.aimPointer !== null,
+      aim: this.aimPointer
+        ? {
+          ox: this.aimPointer.ox,
+          oy: this.aimPointer.oy,
+          dx: this.aimPointer.dx,
+          dy: this.aimPointer.dy,
+        }
+        : null,
     };
   }
 

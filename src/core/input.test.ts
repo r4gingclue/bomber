@@ -341,6 +341,7 @@ it('clears every held and queued input state on blur', () => {
 
 const CONTROLS: TouchControls = {
   move: { x: 80, y: 400, r: 40 },
+  aim: { x: 880, y: 400, r: 40 },
   missile: { x: 880, y: 300, r: 40 },
   drop: { x: 880, y: 400, r: 40 },
   zoneSplitX: 480,
@@ -404,18 +405,25 @@ describe('floating aim/fire zone', () => {
     expect(input.poll().fire).toBe(false);
   });
 
-  it('aims at the finger position and follows it', () => {
+  it('aims using a virtual joystick offset from touch origin', () => {
     const { el, input } = harness();
     el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
-    expect(input.aimCanvasPoint()).toEqual({ x: 700, y: 200 });
-    el.emit('pointermove', { pointerId: 2, clientX: 640, clientY: 260 });
-    expect(input.aimCanvasPoint()).toEqual({ x: 640, y: 260 });
+    // At origin, stick has no deflection but aimPointer exists
+    expect(input.aimStickDir()).toEqual({ dx: 0, dy: 0 });
+    el.emit('pointermove', { pointerId: 2, clientX: 740, clientY: 200 });
+    // Deflected right - aim direction is positive x
+    const dir = input.aimStickDir();
+    expect(dir).toBeTruthy();
+    expect(dir!.dx).toBeGreaterThan(0);
   });
 
-  it('does not report a relative stick direction for touch aim', () => {
+  it('reports a relative stick direction for touch aim', () => {
     const { el, input } = harness();
     el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
-    expect(input.aimStickDir()).toBeNull();
+    el.emit('pointermove', { pointerId: 2, clientX: 740, clientY: 200 });
+    const dir = input.aimStickDir();
+    expect(dir).toBeTruthy();
+    expect(dir!.dx).toBeGreaterThan(0);
   });
 });
 
@@ -456,12 +464,12 @@ describe('pointer role locking', () => {
     expect(input.poll().move.x).toBeCloseTo(1, 5); // clamped full deflection
   });
 
-  it('keeps aiming when the finger slides into the steering half', () => {
+  it('keeps aiming when the finger slides within the aim half', () => {
     const { el, input } = harness();
     el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
-    el.emit('pointermove', { pointerId: 2, clientX: 100, clientY: 200 });
+    el.emit('pointermove', { pointerId: 2, clientX: 740, clientY: 200 });
     expect(input.poll().fire).toBe(true);
-    expect(input.aimCanvasPoint()).toEqual({ x: 100, y: 200 });
+    expect(input.aimStickDir()).toBeTruthy();
     expect(input.poll().move.x).toBe(0); // did not become a steer pointer
   });
 
@@ -569,13 +577,14 @@ describe('touch teardown', () => {
 describe('touchVisuals', () => {
   it('reports the live steer origin and aim state', () => {
     const { el, input } = harness();
-    expect(input.touchVisuals()).toEqual({ steer: null, aiming: false });
+    expect(input.touchVisuals()).toEqual({ steer: null, aim: null });
     el.emit('pointerdown', { pointerId: 1, clientX: 200, clientY: 500 });
     el.emit('pointermove', { pointerId: 1, clientX: 220, clientY: 480 });
     el.emit('pointerdown', { pointerId: 2, clientX: 700, clientY: 200 });
+    el.emit('pointermove', { pointerId: 2, clientX: 720, clientY: 180 });
     expect(input.touchVisuals()).toEqual({
       steer: { ox: 200, oy: 500, dx: 20, dy: -20 },
-      aiming: true,
+      aim: { ox: 700, oy: 200, dx: 20, dy: -20 },
     });
   });
 });

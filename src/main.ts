@@ -101,6 +101,7 @@ function resize(): void {
   screenLayout = uiLayout(innerWidth, innerHeight, insets, true, viewport);
   input?.setTouchControls({
     move: screenLayout.move,
+    aim: screenLayout.aim,
     missile: screenLayout.missile,
     drop: screenLayout.drop,
     zoneSplitX: screenLayout.zoneSplitX,
@@ -249,6 +250,7 @@ async function boot(): Promise<void> {
 
   activeInput.setTouchControls({
     move: screenLayout.move,
+    aim: screenLayout.aim,
     missile: screenLayout.missile,
     drop: screenLayout.drop,
     zoneSplitX: screenLayout.zoneSplitX,
