@@ -158,7 +158,7 @@ export class Renderer {
 
     this.damageFlash(world, reducedFlash, debugDamageFlash);
     this.drawScreenUi(world, phase, touchUI, layout, audioSettings, progressionView);
-    if (phase === 'menu') this.menu();
+    if (phase === 'menu') this.menu(layout);
     if (phase === 'actIntro') this.actIntro(world);
     if (phase === 'gameover') this.gameover(world);
   }
@@ -845,6 +845,7 @@ export class Renderer {
   private audioPanel(layout: UiLayout, view: AudioSettingsView, collapsed: boolean): void {
     const ctx = this.uiCtx;
     const panel = layout.audio.panel;
+    const isSmall = layout.viewport.h < 700 || layout.viewport.w < 500;
     ctx.fillStyle = 'rgba(4, 10, 20, 0.9)';
     ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
     ctx.strokeStyle = '#9fd8ff';
@@ -861,13 +862,13 @@ export class Renderer {
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         ctx.strokeStyle = '#9fd8ff';
         ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-        this.text(label, rect.x + rect.w / 2, rect.y + 24, 12, '#e8f2ff', true, ctx);
+        this.text(label, rect.x + rect.w / 2, rect.y + (isSmall ? 22 : 24), isSmall ? 10 : 12, '#e8f2ff', true, ctx);
       }
       if (view.creditsOpen) {
         ctx.fillStyle = 'rgba(4, 10, 20, 0.97)';
-        ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - 88);
+        ctx.fillRect(panel.x + 8, panel.y + 8, panel.w - 16, panel.h - (isSmall ? 88 : 96));
         AUDIO_CREDIT_LINES.forEach((line, index) =>
-          this.text(line, panel.x + panel.w / 2, panel.y + 28 + index * 20, 11, '#e8f2ff', true, ctx));
+          this.text(line, panel.x + panel.w / 2, panel.y + (isSmall ? 24 : 28) + index * (isSmall ? 16 : 20), isSmall ? 9 : 11, '#e8f2ff', true, ctx));
       }
     }
 
@@ -880,7 +881,7 @@ export class Renderer {
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.strokeStyle = primary ? '#ffd866' : '#9fd8ff';
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-      this.text(label, rect.x + rect.w / 2, rect.y + 24, 12, primary ? '#fff2c6' : '#e8f2ff', true, ctx);
+      this.text(label, rect.x + rect.w / 2, rect.y + (isSmall ? 22 : 24), isSmall ? 10 : 12, primary ? '#fff2c6' : '#e8f2ff', true, ctx);
     }
   }
 
@@ -1011,21 +1012,32 @@ export class Renderer {
     this.ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
 
-  private menu(): void {
+  private menu(layout: UiLayout): void {
     this.overlay();
-    // Title
-    this.text('SEA BOMBER', VIEW_W / 2, 50, 24, '#ffd866', true);
-    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, 72, 8, '#9fd8ff', true);
+    const viewportH = layout.viewport.h;
+    const viewportW = layout.viewport.w;
+    const isSmall = viewportH < 700 || viewportW < 500;
 
-    // How to Play section - compact, centered
-    this.text('HOW TO PLAY', VIEW_W / 2, 95, 12, '#ffd866', true);
-    const instrY = 112;
-    const instrGap = 14;
-    this.text('MOVE: WASD / arrows / left stick', VIEW_W / 2, instrY, 8, '#e8f2ff', true);
-    this.text('AIM: mouse / right stick', VIEW_W / 2, instrY + instrGap, 8, '#e8f2ff', true);
-    this.text('DROP: SPACE / right button / A button', VIEW_W / 2, instrY + instrGap * 2, 8, '#e8f2ff', true);
-    this.text('MISSILES: E / left button / X button', VIEW_W / 2, instrY + instrGap * 3, 8, '#e8f2ff', true);
-    this.text('FIRE: click / F / right trigger', VIEW_W / 2, instrY + instrGap * 4, 8, '#e8f2ff', true);
+    // Title - responsive sizing
+    const titleSize = isSmall ? 18 : 24;
+    const titleY = isSmall ? 35 : 50;
+    const tagY = titleY + titleSize - 6;
+    const tagSize = isSmall ? 7 : 8;
+    this.text('SEA BOMBER', VIEW_W / 2, titleY, titleSize, '#ffd866', true);
+    this.text('depth-charge the subs · dodge everything', VIEW_W / 2, tagY + titleSize, tagSize, '#9fd8ff', true);
+
+    // How to Play section - responsive
+    const instrStartY = isSmall ? 85 : 95;
+    const instrSize = isSmall ? 7 : 8;
+    const instrGap = isSmall ? 11 : 14;
+    this.text('HOW TO PLAY', VIEW_W / 2, instrStartY, isSmall ? 10 : 12, '#ffd866', true);
+
+    const instrY = instrStartY + (isSmall ? 14 : 17);
+    this.text('MOVE: WASD / arrows / left stick', VIEW_W / 2, instrY, instrSize, '#e8f2ff', true);
+    this.text('AIM: mouse / right stick', VIEW_W / 2, instrY + instrGap, instrSize, '#e8f2ff', true);
+    this.text('DROP: SPACE / right button / A button', VIEW_W / 2, instrY + instrGap * 2, instrSize, '#e8f2ff', true);
+    this.text('MISSILES: E / left button / X button', VIEW_W / 2, instrY + instrGap * 3, instrSize, '#e8f2ff', true);
+    this.text('FIRE: click / F / right trigger', VIEW_W / 2, instrY + instrGap * 4, instrSize, '#e8f2ff', true);
   }
 
   results(view: PostWaveView, layout: UpgradeLayout): void {
