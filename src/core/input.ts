@@ -223,7 +223,7 @@ export class Input {
       const base = this.controls.aim;
       const len = Math.hypot(this.aimPointer.dx, this.aimPointer.dy);
       const cap = len > base.r ? base.r / len : 1;
-      return { dx: (this.aimPointer.dx * cap) / base.r, dy: (this.aimPointer.dy * cap) / base.r };
+      return { dx: this.aimPointer.dx * cap, dy: this.aimPointer.dy * cap };
     }
     return this.gamepadAim;
   }
